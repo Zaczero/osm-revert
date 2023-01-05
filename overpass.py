@@ -45,9 +45,10 @@ def build_query_by_ids(element_ids: dict) -> str:
 
 class Overpass:
     def __init__(self):
-        self.base_url = 'https://overpass-api.de/api/interpreter'
+        # TODO: self-hosted for available BBOX
+        self.base_url = 'https://overpass.monicz.pl/api/interpreter'
 
-    def get_changeset_diff(self, changeset: dict) -> dict:
+    def get_changeset_elements_history(self, changeset: dict) -> dict:
         adiff = get_changeset_adiff(changeset)
         element_ids = get_changeset_ids(changeset)
 
@@ -57,12 +58,11 @@ class Overpass:
         resp.raise_for_status()
 
         diff = xmltodict.parse(resp.text)
-        current_map = self.get_current_state(element_ids)
 
         result = {
-            'node': [],
-            'way': [],
-            'relation': []
+            'node': {},
+            'way': {},
+            'relation': {}
         }
 
         for action in ensure_iterable(diff['osm']['action']):
@@ -73,7 +73,7 @@ class Overpass:
             elif action['@type'] == 'modify':
                 element_type, element_old = next(iter(action['old'].items()))
                 element_new = next(iter(action['new'].values()))
-                element_id = element_new['@id']
+                element_id = element_old['@id']
             elif action['@type'] == 'delete':
                 element_type, element_old = next((k, v) for k, v in action.items() if not k.startswith('@'))
                 element_new = None
@@ -81,8 +81,7 @@ class Overpass:
             else:
                 raise
 
-            element_latest = current_map[element_type].get(element_id, None)
-            result[element_type].append((element_old, element_new, element_latest))
+            result[element_type][element_id] = (element_old, element_new)
 
         return result
 

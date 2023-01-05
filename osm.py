@@ -9,7 +9,7 @@ class OsmApi:
         self.base_url = 'https://api.openstreetmap.org/api/0.6'
         self.auth = (username, password)
 
-    def full_changeset_download(self, changeset_id: int) -> dict:
+    def get_changeset(self, changeset_id: int) -> dict:
         info_resp = requests.get(f'{self.base_url}/changeset/{changeset_id}')
         info_resp.raise_for_status()
         info = xmltodict.parse(info_resp.text)
