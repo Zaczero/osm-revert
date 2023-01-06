@@ -64,8 +64,7 @@ async def fetch_user_details(request: Request) -> Optional[dict]:
 @app.post('/')
 async def index(request: Request):
     if user := await fetch_user_details(request):
-        print(user)
-        return templates.TemplateResponse('home.html', {'request': request, 'user': user})
+        return templates.TemplateResponse('authorized.html', {'request': request, 'user': user})
     else:
         return templates.TemplateResponse('index.html', {'request': request})
 

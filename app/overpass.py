@@ -4,7 +4,13 @@ from typing import Optional
 import xmltodict
 from httpx import Client
 
+from config import USER_AGENT
 from utils import ensure_iterable
+
+
+def ensure_action(diff: dict):
+    if 'action' not in diff['osm']:
+        diff['osm']['action'] = []
 
 
 def parse_timestamp(timestamp: str) -> int:
@@ -98,7 +104,7 @@ class Overpass:
         element_ids = get_changeset_ids(changeset)
         query_by_ids = build_query_by_ids(element_ids)
 
-        with Client() as c:
+        with Client(headers={'user-agent': USER_AGENT}) as c:
             changeset_resp = c.post(self.base_url, data={
                 'data': f'[timeout:180][adiff:{changeset_adiff}];{query_by_ids}out meta;'
             }, timeout=300)
@@ -111,6 +117,10 @@ class Overpass:
 
         changeset_diff = xmltodict.parse(changeset_resp.text)
         current_diff = xmltodict.parse(current_resp.text)
+
+        ensure_action(changeset_diff)
+        ensure_action(current_diff)
+
         current_map = get_current_map(current_diff['osm']['action'])
 
         result = {

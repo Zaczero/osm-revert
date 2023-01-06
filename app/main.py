@@ -2,9 +2,11 @@ import os
 
 import fire
 
+from config import CREATED_BY
 from invert import invert_diff
 from osm import OsmApi
 from overpass import Overpass
+from utils import ensure_iterable
 
 
 def merge_and_sort_diffs(diffs: list[dict]) -> dict:
@@ -21,15 +23,26 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
     return result
 
 
-def main(changeset_ids: list[str]):
-    osm = OsmApi(os.getenv('USER'), os.getenv('PASS'))
+def main(changeset_ids: list | str | int, comment: str,
+         username: str = None, password: str = None, *,
+         oauth_token: str = None, oauth_token_secret: str = None):
+    changeset_ids = [str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids)]
+    assert changeset_ids, 'Missing changeset id'
+
+    if not username and not password:
+        username = os.getenv('OSM_USERNAME')
+        password = os.getenv('OSM_PASSWORD')
+
+    print('🔒️ Logging in to OpenStreetMap')
+    osm = OsmApi(username=username, password=password, oauth_token=oauth_token, oauth_token_secret=oauth_token_secret)
+    print(f'👤 Welcome, {osm.get_authorized_display_name()}!')
+
     overpass = Overpass()
 
     diffs = []
 
     for changeset_id in changeset_ids:
         changeset_id = int(changeset_id)
-
         print(f'☁️ Downloading changeset {changeset_id}')
 
         print(f'[1/2] OpenStreetMap …')
@@ -42,7 +55,12 @@ def main(changeset_ids: list[str]):
     print('🔁 Generating a revert')
     invert = invert_diff(merge_and_sort_diffs(diffs))
 
-    x = 1
+    print('🌍️ Uploading changes')
+    if changeset_id := osm.upload_diff(invert, comment, {
+        'created_by': CREATED_BY,
+        'osmrev:ids': ','.join(changeset_ids)
+    }):
+        print(f'✅ Success ({changeset_id})')
 
 
 if __name__ == '__main__':

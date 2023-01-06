@@ -1,24 +1,75 @@
+import os
 from typing import Optional
 
 import xmltodict
+from authlib.integrations.httpx_client import OAuth1Auth
 from httpx import Client
 
+from config import USER_AGENT
 from utils import ensure_iterable
 
 
-def apply_changeset_id(diff, changeset_id) -> None:
+def build_osm_change(diff: dict, changeset_id: str) -> dict:
+    # TODO: resolve dependency
+    result = {'osmChange': {
+        '@version': 0.6,
+        'modify': {
+            'relation': [],
+            'way': [],
+            'node': []
+        },
+        'delete': {
+            'relation': [],
+            'way': [],
+            'node': []
+        }}}
+
     for element_type, elements in diff.items():
         for element in elements:
             element['@changeset'] = changeset_id
 
+            if element['@visible'] == 'true':
+                action = 'modify'
+            else:
+                action = 'delete'
+                element.pop('@lat', None)
+                element.pop('@lon', None)
+                element.pop('tag', None)
+                element.pop('nd', None)
+                element.pop('member', None)
+
+            result['osmChange'][action][element_type].append(element)
+
+    return result
+
 
 class OsmApi:
-    def __init__(self, username: str, password: str):
+    def __init__(self, *,
+                 username: str = None, password: str = None,
+                 oauth_token: str = None, oauth_token_secret: str = None):
         self.base_url = 'https://api.openstreetmap.org/api/0.6'
-        self.auth = (username, password)
+
+        if oauth_token and oauth_token_secret:
+            self.auth = OAuth1Auth(
+                client_id=os.getenv('CONSUMER_KEY'),
+                client_secret=os.getenv('CONSUMER_SECRET'),
+                token=oauth_token,
+                token_secret=oauth_token_secret
+            )
+        elif username and password:
+            self.auth = (username, password)
+        else:
+            raise Exception('Authorization is required')
+
+    def get_authorized_display_name(self) -> str:
+        with Client(auth=self.auth, headers={'user-agent': USER_AGENT}) as c:
+            resp = c.get('https://api.openstreetmap.org/api/0.6/user/details.json')
+            resp.raise_for_status()
+
+        return resp.json()['user']['display_name']
 
     def get_changeset(self, changeset_id: int) -> dict:
-        with Client() as c:
+        with Client(headers={'user-agent': USER_AGENT}) as c:
             info_resp = c.get(f'{self.base_url}/changeset/{changeset_id}')
             info_resp.raise_for_status()
 
@@ -46,14 +97,11 @@ class OsmApi:
 
         return info | diff
 
-    def upload_diff(self, diff: dict, comment: str, extra_tags: Optional[dict] = None) -> bool:
+    def upload_diff(self, diff: dict, comment: str, extra_tags: Optional[dict] = None) -> Optional[str]:
         assert 'comment' not in extra_tags
         extra_tags['comment'] = comment
 
-        with Client(
-                auth=self.auth,
-                headers={'Content-Type': 'text/xml; charset=utf-8'}
-        ) as c:
+        with Client(auth=self.auth, headers={'user-agent': USER_AGENT, 'content-type': 'text/xml; charset=utf-8'}) as c:
             changeset = {'osm': {'changeset': {'tag': [
                 {'@k': k, '@v': v} for k, v in extra_tags.items()
             ]}}}
@@ -63,20 +111,7 @@ class OsmApi:
             cs_resp.raise_for_status()
             changeset_id = cs_resp.text
 
-            apply_changeset_id(diff, changeset_id)
-
-            osm_change = {'osmChange': {
-                '@version': 0.6,
-                'modify': {
-                    'node': [e for e in diff['node'] if e['@visible'] == 'true'],
-                    'way': [e for e in diff['way'] if e['@visible'] == 'true'],
-                    'relation': [e for e in diff['relation'] if e['@visible'] == 'true']
-                },
-                'delete': {
-                    'node': [e for e in diff['node'] if e['@visible'] == 'false'],
-                    'way': [e for e in diff['way'] if e['@visible'] == 'false'],
-                    'relation': [e for e in diff['relation'] if e['@visible'] == 'false']
-                }}}
+            osm_change = build_osm_change(diff, changeset_id)
             osm_change_xml = xmltodict.unparse(osm_change).encode('utf-8')
 
             diff_resp = c.post(f'{self.base_url}/changeset/{changeset_id}/upload', data=osm_change_xml)
@@ -84,4 +119,8 @@ class OsmApi:
             cs_resp = c.put(f'{self.base_url}/changeset/{changeset_id}/close')
             cs_resp.raise_for_status()
 
-        return diff_resp.status_code == 200
+        if diff_resp.status_code != 200:
+            print(f'😵 Failed to upload the changes ({diff_resp.status_code}): {diff_resp.text}')
+            return None
+
+        return changeset_id

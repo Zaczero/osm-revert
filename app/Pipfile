@@ -7,6 +7,7 @@ name = "pypi"
 xmltodict = "*"
 fire = "*"
 httpx = "*"
+authlib = "*"
 
 [dev-packages]
 
