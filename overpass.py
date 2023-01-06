@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-import requests
 import xmltodict
+from httpx import Client
 
 from utils import ensure_iterable
 
@@ -98,16 +98,18 @@ class Overpass:
         element_ids = get_changeset_ids(changeset)
         query_by_ids = build_query_by_ids(element_ids)
 
-        changeset_resp = requests.post(self.base_url, data={
-            'data': f'[timeout:180][adiff:{changeset_adiff}];{query_by_ids}out meta;'
-        }, timeout=300)
-        changeset_resp.raise_for_status()
-        changeset_diff = xmltodict.parse(changeset_resp.text)
+        with Client() as c:
+            changeset_resp = c.post(self.base_url, data={
+                'data': f'[timeout:180][adiff:{changeset_adiff}];{query_by_ids}out meta;'
+            }, timeout=300)
+            changeset_resp.raise_for_status()
 
-        current_resp = requests.post(self.base_url, data={
-            'data': f'[timeout:180][adiff:{current_adiff}];{query_by_ids}out meta;'
-        }, timeout=300)
-        current_resp.raise_for_status()
+            current_resp = c.post(self.base_url, data={
+                'data': f'[timeout:180][adiff:{current_adiff}];{query_by_ids}out meta;'
+            }, timeout=300)
+            current_resp.raise_for_status()
+
+        changeset_diff = xmltodict.parse(changeset_resp.text)
         current_diff = xmltodict.parse(current_resp.text)
         current_map = get_current_map(current_diff['osm']['action'])
 

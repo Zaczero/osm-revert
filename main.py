@@ -1,5 +1,7 @@
 import os
 
+import fire
+
 from invert import invert_diff
 from osm import OsmApi
 from overpass import Overpass
@@ -19,21 +21,29 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
     return result
 
 
-def main():
-    changeset_id = '130847690'
-    changeset_id = int(changeset_id)
-
+def main(changeset_ids: list[str]):
     osm = OsmApi(os.getenv('USER'), os.getenv('PASS'))
     overpass = Overpass()
 
-    changeset = osm.get_changeset(changeset_id)
-    diff_1 = overpass.get_changeset_elements_history(changeset)
+    diffs = []
 
-    diff = merge_and_sort_diffs([diff_1])
-    invert = invert_diff(diff)
+    for changeset_id in changeset_ids:
+        changeset_id = int(changeset_id)
+
+        print(f'☁️ Downloading changeset {changeset_id}')
+
+        print(f'[1/2] OpenStreetMap …')
+        changeset = osm.get_changeset(changeset_id)
+
+        print(f'[2/2] Overpass …')
+        diff = overpass.get_changeset_elements_history(changeset)
+        diffs.append(diff)
+
+    print('🔁 Generating a revert')
+    invert = invert_diff(merge_and_sort_diffs(diffs))
 
     x = 1
 
 
 if __name__ == '__main__':
-    main()
+    fire.Fire(main)

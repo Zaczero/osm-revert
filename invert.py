@@ -11,6 +11,7 @@ def invert_diff(diff: dict) -> dict:
         'relation': []
     }
 
+    # store latest versions of elements (for osmChange upload)
     version_map = {
         'node': {},
         'way': {},
@@ -24,8 +25,6 @@ def invert_diff(diff: dict) -> dict:
         'relation': {}
     }
 
-    # TODO: visible false -> visible true
-
     for element_type, elements in diff.items():
         for _, element_id, old, new, current in elements:
             if element_id not in version_map[element_type]:
@@ -34,7 +33,7 @@ def invert_diff(diff: dict) -> dict:
             current = current_map[element_type].get(element_id, current)
 
             # create
-            if not old and new['@visible'] == 'true':
+            if (not old or old['@visible'] == 'false') and new['@visible'] == 'true':
                 # absolute delete
                 if current['@visible'] == 'true':
                     current['@visible'] = 'false'

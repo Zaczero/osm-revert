@@ -4,8 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-requests = "*"
 xmltodict = "*"
+fire = "*"
+httpx = "*"
 
 [dev-packages]
 
