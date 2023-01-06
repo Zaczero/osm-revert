@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block body %}
+
+    <img src="{{ user.img.href }}" width="16" height="16" alt="Profile picture">
+
+    <h2 style="display: inline; margin-left: .1em">{{ user.display_name }}</h2>
+
+    <form action="/logout" method="post" style="display: inline; margin-left: .3em">
+        <input type="submit" value="Logout">
+    </form>
+
+    <div style="margin-bottom: .5em"></div>
+
+    <form>
+        <label>
+            Changesets:<br>
+            <textarea cols="60" rows="1" placeholder="118034381, 130000000, …"></textarea>
+        </label><br>
+
+        <label>
+            Comment:<br>
+            <textarea cols="60" rows="3" placeholder="I revert it because…"></textarea>
+        </label><br>
+
+        <div style="margin-bottom: .2em"></div>
+
+        <input type="button" value="Run the revert">
+
+        <div style="margin-bottom: 1.4em"></div>
+
+        <label>
+            Revert log<br>
+            <textarea cols="60" rows="15" readonly></textarea>
+        </label>
+    </form>
+
+{% endblock %}
