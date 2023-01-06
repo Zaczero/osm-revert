@@ -10,6 +10,13 @@ def ensure_iterable(item) -> Iterable:
     return item,
 
 
+def dmp_retry_reverse(old: list, new: list, current: list) -> Optional[list]:
+    if result := dmp(old, new, current):
+        return result
+
+    return dmp(old, new[::-1], current)
+
+
 def dmp(old: list, new: list, current: list) -> Optional[list]:
     old_lines = '\n'.join(old) + '\n'
     new_lines = '\n'.join(new) + '\n'
@@ -17,7 +24,7 @@ def dmp(old: list, new: list, current: list) -> Optional[list]:
 
     d = diff_match_patch()
     d.Match_Threshold = 1
-    d.Match_Distance = len(old_lines)
+    d.Patch_DeleteThreshold = 0
     diff = d.diff_lineMode(new_lines, current_lines, deadline=None)
     d.diff_cleanupSemanticLossless(diff)
     patch = d.patch_make(diff)
@@ -30,12 +37,16 @@ def dmp(old: list, new: list, current: list) -> Optional[list]:
 
     result = result_lines.strip().split('\n')
 
-    # the result contains duplicates (that's bad)
+    # result must not contain duplicates
     if len(result) != len(set(result)):
         return None
 
-    # result must contain all common nodes in old + current
-    if set(old).intersection(set(current)) - set(result):
+    # result must not delete any common elements
+    if set(old).intersection(current) - set(result):
+        return None
+
+    # result must not create any new elements
+    if set(result) - set(old).union(current):
         return None
 
     return result
