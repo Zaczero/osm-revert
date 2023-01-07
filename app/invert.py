@@ -1,7 +1,13 @@
 import json
 from copy import deepcopy
+from typing import Optional
 
 from utils import ensure_iterable, dmp_retry_reverse
+
+
+def set_visible_original(target: Optional[dict], current: dict):
+    if target and '@visible:original' not in target:
+        target['@visible:original'] = current['@visible']
 
 
 def invert_diff(diff: dict) -> dict:
@@ -25,6 +31,10 @@ def invert_diff(diff: dict) -> dict:
                 version_map[element_type][element_id] = current['@version']
 
             current = current_map[element_type].get(element_id, current)
+
+            set_visible_original(old, current)
+            set_visible_original(new, current)
+            set_visible_original(current, current)
 
             # create
             if (not old or old['@visible'] == 'false') and new['@visible'] == 'true':
@@ -71,11 +81,17 @@ def invert_diff(diff: dict) -> dict:
 
     result = {element_type: list(element_id_map.values()) for element_type, element_id_map in current_map.items()}
 
-    for element_type, elements in current_map.items():
-        for element in elements:
+    for element_type, elements in result.items():
+        for element in list(elements):
             element['@version'] = version_map[element_type][element['@id']]
 
-    return current_map
+            # don't delete already deleted elements (this may happen during multiple changesets)
+            if element['@visible'] == 'false' and element['@visible:original'] == 'false':
+                elements.remove(element)
+            else:
+                del element['@visible:original']
+
+    return result
 
 
 def invert_tags(old: dict, new: dict, current: dict) -> None:

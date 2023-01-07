@@ -170,7 +170,8 @@ class OsmApi:
             return None
 
         if diff_resp.status_code != 200:
-            print(f'😵 Failed to upload the changes ({diff_resp.status_code}): {diff_resp.text}')
+            print(f'😵 Failed to upload the changes ({diff_resp.status_code})')
+            print(f'😵 {diff_resp.text}')
             return None
 
         return changeset_id
