@@ -72,5 +72,6 @@ def main(changeset_ids: list | str | int, comment: str,
     exit(-1)
 
 
+# TODO: report status via tags
 if __name__ == '__main__':
     fire.Fire(main)
