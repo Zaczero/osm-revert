@@ -24,7 +24,7 @@ def get_changeset_adiff(changeset: dict) -> str:
 
 
 def get_current_adiff(changeset: dict) -> str:
-    date_from = changeset['osm']['changeset']['@closed_at']
+    date_from = changeset['osm']['changeset']['@created_at']
 
     return f'"{date_from}"'
 
@@ -113,7 +113,7 @@ class Overpass:
         changeset_diff = xmltodict.parse(changeset_resp.text)
         current_diff = xmltodict.parse(current_resp.text)
 
-        current_map = get_current_map(current_diff['osm'].get('action', None))
+        current_map = get_current_map(current_diff['osm'].get('action', []))
 
         result = {
             'node': [],
@@ -121,7 +121,7 @@ class Overpass:
             'relation': []
         }
 
-        for action in ensure_iterable(changeset_diff['osm'].get('action', None)):
+        for action in ensure_iterable(changeset_diff['osm'].get('action', [])):
             if action['@type'] == 'create':
                 element_old = None
                 element_type, element_new = next((k, v) for k, v in action.items() if not k.startswith('@'))

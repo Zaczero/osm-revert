@@ -378,7 +378,7 @@ class diff_match_patch:
 
     return diffs + diffsb
 
-  def diff_linesToChars(self, text1, text2):
+  def diff_linesToChars(self, text1, text2, text3):
     """Split two texts into an array of strings.  Reduce the texts to a string
     of hashes where each Unicode character represents one line.
 
@@ -437,9 +437,17 @@ class diff_match_patch:
     # Allocate 2/3rds of the space for text1, the rest for text2.
     maxLines = 666666
     chars1 = diff_linesToCharsMunge(text1)
-    maxLines = 1114111
+    maxLines = 557056
     chars2 = diff_linesToCharsMunge(text2)
-    return (chars1, chars2, lineArray)
+    maxLines = 557055
+    chars3 = diff_linesToCharsMunge(text3)
+    return (chars1, chars2, chars3, lineArray)
+
+  def diff_charsToLinesText(self, chars, lineArray):
+    text = []
+    for char in chars:
+      text.append(lineArray[ord(char)])
+    return "".join(text)
 
   def diff_charsToLines(self, diffs, lineArray):
     """Rehydrate the text in a diff from a string of line hashes to real lines

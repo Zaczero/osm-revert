@@ -52,6 +52,9 @@ def invert_diff(diff: dict) -> dict:
 
                 # advanced revert
                 else:
+                    print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
+
+                    current['tag'] = ensure_iterable(current['tag'])
                     current_original = deepcopy(current)
 
                     invert_tags(old, new, current)
@@ -190,8 +193,11 @@ def invert_way_nodes(old: dict, new: dict, current: dict) -> None:
         current['nd'] = old['nd']
         return
 
+    print(f'💡 Performing DMP patch on way:{new["@id"]}')
+
     if patch := dmp_retry_reverse(old_nodes, new_nodes, current_nodes):
         current['nd'] = [json.loads(p) for p in patch]
+        print(f'[DMP][☑️] Patch successful')
 
 
 def invert_relation_members(old: dict, new: dict, current: dict) -> None:
@@ -212,5 +218,8 @@ def invert_relation_members(old: dict, new: dict, current: dict) -> None:
         current['member'] = old['member']
         return
 
+    print(f'💡 Performing DMP patch relation:{new["@id"]}')
+
     if patch := dmp_retry_reverse(old_members, new_members, current_members):
         current['member'] = [json.loads(p) for p in patch]
+        print(f'✅ Patch successful')

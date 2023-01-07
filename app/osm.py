@@ -12,40 +12,42 @@ from utils import ensure_iterable
 def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
     change_ids = {rel['@id'] for rel in relations}
 
-    dependencies_map = {
-        rel: set(
+    dependency_state = [
+        (rel, set(
             m['@ref'] for m in ensure_iterable(rel.get('member', []))
-            if m['type'] == 'relation'
-        ).intersection(change_ids)
-        for rel in relations}
+            if m['@type'] == 'relation'
+        ).intersection(change_ids))
+        for rel in relations]
 
-    no_dependencies = {
-        rel for rel in relations
-        if not dependencies_map[rel]}
+    no_dependencies = [
+        rel for rel, deps in dependency_state
+        if not deps]
 
     visible = []
     hidden = []
 
     while no_dependencies:
         rel = no_dependencies.pop()
+        rel_id = rel['@id']
 
         if rel['@visible'] == 'true':
             visible.append(rel)
         else:
             hidden.append(rel)
 
-        for other_rel, deps in dependencies_map.items():
-            if rel in deps:
-                deps.remove(rel)
+        for other_rel, deps in dependency_state:
+            if rel_id in deps:
+                deps.remove(rel_id)
 
                 if not deps:
-                    no_dependencies.add(other_rel)
-
-    if dependencies_map:
-        raise ValueError('Circular relation dependencies detected')
+                    no_dependencies.append(other_rel)
 
     # delete relations with most dependencies first
     visible.extend(reversed(hidden))
+
+    if len(visible) != len(dependency_state):
+        raise ValueError('Circular relation dependencies detected')
+
     return visible
 
 
@@ -161,6 +163,11 @@ class OsmApi:
 
             cs_resp = c.put(f'{self.base_url}/changeset/{changeset_id}/close')
             cs_resp.raise_for_status()
+
+        if diff_resp.status_code == 409:
+            print(f'🆚 Failed to upload the changes ({diff_resp.status_code})')
+            print(f'🆚 The Overpass data is outdated, please try again shortly')
+            return None
 
         if diff_resp.status_code != 200:
             print(f'😵 Failed to upload the changes ({diff_resp.status_code}): {diff_resp.text}')
