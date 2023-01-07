@@ -8,11 +8,6 @@ from config import USER_AGENT
 from utils import ensure_iterable
 
 
-def ensure_action(diff: dict):
-    if 'action' not in diff['osm']:
-        diff['osm']['action'] = []
-
-
 def parse_timestamp(timestamp: str) -> int:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
     return int(datetime.strptime(timestamp, date_format).timestamp())
@@ -118,10 +113,7 @@ class Overpass:
         changeset_diff = xmltodict.parse(changeset_resp.text)
         current_diff = xmltodict.parse(current_resp.text)
 
-        ensure_action(changeset_diff)
-        ensure_action(current_diff)
-
-        current_map = get_current_map(current_diff['osm']['action'])
+        current_map = get_current_map(current_diff['osm'].get('action', None))
 
         result = {
             'node': [],
@@ -129,7 +121,7 @@ class Overpass:
             'relation': []
         }
 
-        for action in ensure_iterable(changeset_diff['osm']['action']):
+        for action in ensure_iterable(changeset_diff['osm'].get('action', None)):
             if action['@type'] == 'create':
                 element_old = None
                 element_type, element_new = next((k, v) for k, v in action.items() if not k.startswith('@'))

@@ -23,6 +23,7 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
     return result
 
 
+# TODO: revert specific elements CS(node:123,456;way:123)
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
          oauth_token: str = None, oauth_token_secret: str = None):
@@ -55,12 +56,19 @@ def main(changeset_ids: list | str | int, comment: str,
     print('🔁 Generating a revert')
     invert = invert_diff(merge_and_sort_diffs(diffs))
 
+    if all(not elements for elements in invert.values()):
+        print(f'✅ Nothing to revert')
+        exit(0)
+
     print('🌍️ Uploading changes')
     if changeset_id := osm.upload_diff(invert, comment, {
         'created_by': CREATED_BY,
-        'osmrev:ids': ','.join(changeset_ids)
+        'revert:ids': ';'.join(changeset_ids)
     }):
         print(f'✅ Success ({changeset_id})')
+        exit(0)
+
+    exit(-1)
 
 
 if __name__ == '__main__':

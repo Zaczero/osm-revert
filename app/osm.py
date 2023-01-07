@@ -9,14 +9,54 @@ from config import USER_AGENT
 from utils import ensure_iterable
 
 
+def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
+    change_ids = {rel['@id'] for rel in relations}
+
+    dependencies_map = {
+        rel: set(
+            m['@ref'] for m in ensure_iterable(rel.get('member', []))
+            if m['type'] == 'relation'
+        ).intersection(change_ids)
+        for rel in relations}
+
+    no_dependencies = {
+        rel for rel in relations
+        if not dependencies_map[rel]}
+
+    visible = []
+    hidden = []
+
+    while no_dependencies:
+        rel = no_dependencies.pop()
+
+        if rel['@visible'] == 'true':
+            visible.append(rel)
+        else:
+            hidden.append(rel)
+
+        for other_rel, deps in dependencies_map.items():
+            if rel in deps:
+                deps.remove(rel)
+
+                if not deps:
+                    no_dependencies.add(other_rel)
+
+    if dependencies_map:
+        raise ValueError('Circular relation dependencies detected')
+
+    # delete relations with most dependencies first
+    visible.extend(reversed(hidden))
+    return visible
+
+
+# TODO: deleting item should remove member from others?
 def build_osm_change(diff: dict, changeset_id: str) -> dict:
-    # TODO: resolve dependency
     result = {'osmChange': {
         '@version': 0.6,
         'modify': {
-            'relation': [],
+            'node': [],
             'way': [],
-            'node': []
+            'relation': []
         },
         'delete': {
             'relation': [],
@@ -25,6 +65,9 @@ def build_osm_change(diff: dict, changeset_id: str) -> dict:
         }}}
 
     for element_type, elements in diff.items():
+        if element_type == 'relation':
+            elements = sort_relations_for_osm_change(elements)
+
         for element in elements:
             element['@changeset'] = changeset_id
 
