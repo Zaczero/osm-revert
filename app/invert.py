@@ -5,21 +5,15 @@ from utils import ensure_iterable, dmp_retry_reverse
 
 
 def invert_diff(diff: dict) -> dict:
-    result = {
-        'node': [],
-        'way': [],
-        'relation': []
-    }
-
-    # store latest versions of elements (for osmChange upload)
-    version_map = {
+    # we need this to make reverting multiple changesets at a time possible
+    current_map = {
         'node': {},
         'way': {},
         'relation': {}
     }
 
-    # we need this to make reverting multiple changesets at a time possible
-    current_map = {
+    # store latest versions of elements (for osmChange upload)
+    version_map = {
         'node': {},
         'way': {},
         'relation': {}
@@ -37,18 +31,13 @@ def invert_diff(diff: dict) -> dict:
                 # absolute delete
                 if current['@visible'] == 'true':
                     current['@visible'] = 'false'
-
-                    result[element_type].append(current)
                     current_map[element_type][element_id] = deepcopy(current)
 
             # modify
             elif old['@visible'] == 'true' and new['@visible'] == 'true':
                 # simple revert
                 if current['@version'] == new['@version']:
-                    current = old
-
-                    result[element_type].append(current)
-                    current_map[element_type][element_id] = deepcopy(current)
+                    current_map[element_type][element_id] = deepcopy(old)
 
                 # advanced revert
                 else:
@@ -69,26 +58,24 @@ def invert_diff(diff: dict) -> dict:
                         raise
 
                     if current != current_original:
-                        result[element_type].append(current)
                         current_map[element_type][element_id] = deepcopy(current)
 
             # delete
             elif old['@visible'] == 'true' and new['@visible'] == 'false':
                 # do not restore repeatedly deleted elements
                 if current['@version'] == new['@version']:
-                    current = old
-
-                    result[element_type].append(current)
-                    current_map[element_type][element_id] = deepcopy(current)
+                    current_map[element_type][element_id] = deepcopy(old)
 
             else:
                 raise
 
-    for element_type, elements in result.items():
+    result = {element_type: list(element_id_map.values()) for element_type, element_id_map in current_map.items()}
+
+    for element_type, elements in current_map.items():
         for element in elements:
             element['@version'] = version_map[element_type][element['@id']]
 
-    return result
+    return current_map
 
 
 def invert_tags(old: dict, new: dict, current: dict) -> None:

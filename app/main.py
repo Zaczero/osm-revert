@@ -27,7 +27,7 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
          oauth_token: str = None, oauth_token_secret: str = None):
-    changeset_ids = [str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids)]
+    changeset_ids = list(sorted(set(str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids))))
     assert changeset_ids, 'Missing changeset id'
 
     if not username and not password:
@@ -54,7 +54,8 @@ def main(changeset_ids: list | str | int, comment: str,
         diffs.append(diff)
 
     print('🔁 Generating a revert')
-    invert = invert_diff(merge_and_sort_diffs(diffs))
+    merged_diffs = merge_and_sort_diffs(diffs)
+    invert = invert_diff(merged_diffs)
 
     if all(not elements for elements in invert.values()):
         print(f'✅ Nothing to revert')

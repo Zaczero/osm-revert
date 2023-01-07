@@ -73,7 +73,10 @@ def get_current_map(actions: list) -> dict:
     }
 
     for action in ensure_iterable(actions):
-        element_type, element = next(iter(action['new'].items()))
+        if action['@type'] == 'create':
+            element_type, element = next(iter((k, v) for k, v in action.items() if not k.startswith('@')))
+        else:
+            element_type, element = next(iter(action['new'].items()))
         result[element_type][element['@id']] = element
 
     return result
