@@ -2,9 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import xmltodict
-from httpx import Client
 
-from config import USER_AGENT
 from utils import ensure_iterable, get_http_client
 
 

@@ -2,10 +2,9 @@ import os
 from typing import Optional
 
 import xmltodict
-from authlib.integrations.httpx_client import OAuth1Auth
-from httpx import Client
+from authlib.integrations.requests_client import OAuth1Auth
 
-from config import USER_AGENT, TAG_MAX_LENGTH, NO_TAG_PREFIX, TAG_PREFIX
+from config import TAG_MAX_LENGTH, NO_TAG_PREFIX, TAG_PREFIX
 from utils import ensure_iterable, get_http_client
 
 
@@ -178,7 +177,7 @@ class OsmApi:
                 print(f'Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
                 extra_tags[key] = value[:252] + '…'
 
-        with get_http_client(auth=self.auth, headers={'content-type': 'text/xml; charset=utf-8'}) as c:
+        with get_http_client(auth=self.auth, headers={'Content-Type': 'text/xml; charset=utf-8'}) as c:
             changeset = {'osm': {'changeset': {'tag': [
                 {'@k': k, '@v': v} for k, v in extra_tags.items()
             ]}}}

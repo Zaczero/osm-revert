@@ -1,6 +1,7 @@
+import functools
 from typing import Iterable, Optional
 
-from httpx import Client
+from requests import Session
 
 from config import USER_AGENT
 from diff_match_patch import diff_match_patch
@@ -66,4 +67,9 @@ def get_http_client(*, auth: Optional = None, headers: Optional[dict] = None):
     if not headers:
         headers = {}
 
-    return Client(timeout=30, auth=auth, headers={'user-agent': USER_AGENT} | headers)
+    s = Session()
+    s.auth = auth
+    s.headers.update({'User-Agent': USER_AGENT} | headers)
+    s.request = functools.partial(s.request, timeout=30)
+
+    return s

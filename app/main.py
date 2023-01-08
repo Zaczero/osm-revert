@@ -97,7 +97,7 @@ def main(changeset_ids: list | str | int, comment: str,
 
         return -1
 
-    print(f'🌍️ Uploading {invert_size} changes')
+    print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
 
     if changeset_id := osm.upload_diff(invert, comment, {
         'created_by': CREATED_BY,
