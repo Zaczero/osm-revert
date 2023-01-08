@@ -166,7 +166,7 @@ class OsmApi:
         extra_tags['comment'] = comment
 
         for key, value in list(extra_tags.items()):
-            assert not value.startswith(TAG_PREFIX)
+            assert not key.startswith(TAG_PREFIX)
 
             if key not in NO_TAG_PREFIX:
                 del extra_tags[key]
