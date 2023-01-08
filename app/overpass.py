@@ -85,9 +85,7 @@ def ensure_visible_tag(element: Optional[dict]) -> None:
 
 class Overpass:
     def __init__(self):
-        # TODO: self-hosted
-        # self.base_url = 'https://overpass.monicz.dev/api/interpreter'
-        self.base_url = 'https://overpass-api.de/api/interpreter'
+        self.base_url = 'https://overpass.monicz.dev/api/interpreter'
 
     def get_changeset_elements_history(self, changeset: dict) -> dict:
         changeset_action = []
