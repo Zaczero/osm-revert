@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -85,7 +86,8 @@ def ensure_visible_tag(element: Optional[dict]) -> None:
 
 class Overpass:
     def __init__(self):
-        self.base_url = 'https://overpass.monicz.dev/api/interpreter'
+        overpass_domain = os.getenv('OSM_REVERT_OVERPASS_DOMAIN', 'overpass-api.de')
+        self.base_url = f'https://{overpass_domain}/api/interpreter'
 
     def get_changeset_elements_history(self, changeset: dict) -> dict:
         changeset_action = []
