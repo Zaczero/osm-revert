@@ -5,33 +5,89 @@
 
     <h2 style="display: inline; margin-left: .1em">{{ user.display_name }}</h2>
 
-    <form action="/logout" method="post" style="display: inline; margin-left: .3em">
+    <form action="/logout" method="post" style="display: inline; margin-left: .3em; position: relative; top: -4px">
         <input type="submit" value="Logout">
     </form>
 
     <div style="margin-bottom: .5em"></div>
 
-    <form>
+    <form id="form">
         <label>
             Changesets:<br>
-            <textarea cols="60" rows="1" placeholder="118034381, 130000000, …"></textarea>
+            <textarea id="changesets" cols="60" rows="2" placeholder="118034381, 130000000, …"></textarea>
         </label><br>
 
         <label>
             Comment:<br>
-            <textarea cols="60" rows="3" placeholder="I revert it because…"></textarea>
+            <textarea id="comment" cols="60" rows="3" placeholder="I revert it because…" maxlength="255"></textarea>
         </label><br>
 
         <div style="margin-bottom: .2em"></div>
 
-        <input type="button" value="Run the revert">
+        <input id="submit" type="submit" value="Run the revert" disabled>
 
-        <div style="margin-bottom: 1.4em"></div>
+        <div style="margin-bottom: 1.2em"></div>
 
         <label>
             Revert log<br>
-            <textarea cols="60" rows="15" readonly></textarea>
+            <textarea id="log" cols="60" rows="15" readonly></textarea>
         </label>
     </form>
 
+    <script>
+        const form = document.getElementById('form')
+        const changesets = document.getElementById('changesets')
+        const comment = document.getElementById('comment')
+        const submit = document.getElementById('submit')
+        const log = document.getElementById('log')
+        const ws = new WebSocket(`ws://${document.location.host}/ws`)
+
+        let isAutoScrolling = true
+        let isReverting = true
+
+        const setIsReverting = state => {
+            isReverting = state
+            submit.disabled = state
+        }
+
+        ws.onopen = () => {
+            setIsReverting(false)
+        }
+
+        ws.onmessage = e => {
+            const obj = JSON.parse(e.data)
+
+            log.value += obj.message + '\n'
+
+            if (isAutoScrolling && log.scrollHeight > log.clientHeight)
+                log.scrollTop = log.scrollHeight
+
+            if (obj.last === true)
+                setIsReverting(false)
+        }
+
+        ws.onclose = e => {
+            setIsReverting(true)
+            log.value = `⚠️ WebSocket was disconnected: ${e.reason}\n⚠️ Please reload the page`
+        }
+
+        form.addEventListener('submit', e => {
+            e.preventDefault()
+
+            if (isReverting)
+                return
+
+            setIsReverting(true)
+            log.value = ''
+
+            ws.send(JSON.stringify({
+                changesets: changesets.value,
+                comment: comment.value
+            }))
+        })
+
+        log.addEventListener('scroll', () => {
+            isAutoScrolling = log.scrollHeight - log.scrollTop < log.clientHeight + 5
+        })
+    </script>
 {% endblock %}

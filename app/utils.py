@@ -1,5 +1,8 @@
 from typing import Iterable, Optional
 
+from httpx import Client
+
+from config import USER_AGENT
 from diff_match_patch import diff_match_patch
 
 
@@ -57,3 +60,10 @@ def dmp(old: list, new: list, current: list) -> Optional[list]:
         return None
 
     return result
+
+
+def get_http_client(*, auth: Optional = None, headers: Optional[dict] = None):
+    if not headers:
+        headers = {}
+
+    return Client(timeout=30, auth=auth, headers={'user-agent': USER_AGENT} | headers)

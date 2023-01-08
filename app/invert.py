@@ -2,6 +2,7 @@ import json
 from copy import deepcopy
 from typing import Optional
 
+from config import TAG_PREFIX
 from utils import ensure_iterable, dmp_retry_reverse
 
 
@@ -10,7 +11,7 @@ def set_visible_original(target: Optional[dict], current: dict):
         target['@visible:original'] = current['@visible']
 
 
-def invert_diff(diff: dict) -> dict:
+def invert_diff(diff: dict) -> (dict, dict):
     # we need this to make reverting multiple changesets at a time possible
     current_map = {
         'node': {},
@@ -23,6 +24,24 @@ def invert_diff(diff: dict) -> dict:
         'node': {},
         'way': {},
         'relation': {}
+    }
+
+    statistics = {
+        'advanced:node': 0,
+        'advanced:way': 0,
+        'advanced:relation': 0,
+
+        'dmp:success:way': 0,
+        'dmp:success:relation': 0,
+
+        'dmp:success:way:id': [],
+        'dmp:success:relation:id': [],
+
+        'dmp:fail:way': 0,
+        'dmp:fail:relation': 0,
+
+        'dmp:fail:way:id': [],
+        'dmp:fail:relation:id': [],
     }
 
     for element_type, elements in diff.items():
@@ -52,6 +71,7 @@ def invert_diff(diff: dict) -> dict:
                 # advanced revert
                 else:
                     print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
+                    statistics[f'advanced:{element_type}'] += 1
 
                     current['tag'] = ensure_iterable(current['tag'])
                     current_original = deepcopy(current)
@@ -61,9 +81,9 @@ def invert_diff(diff: dict) -> dict:
                     if element_type == 'node':
                         invert_node_position(old, new, current)
                     elif element_type == 'way':
-                        invert_way_nodes(old, new, current)
+                        invert_way_nodes(old, new, current, statistics)
                     elif element_type == 'relation':
-                        invert_relation_members(old, new, current)
+                        invert_relation_members(old, new, current, statistics)
                     else:
                         raise
 
@@ -91,7 +111,16 @@ def invert_diff(diff: dict) -> dict:
             else:
                 del element['@visible:original']
 
-    return result
+    for key, value in list(statistics.items()):
+        if value:
+            if isinstance(value, list):
+                statistics[key] = ';'.join(value)
+            else:
+                statistics[key] = value
+        else:
+            del statistics[key]
+
+    return result, statistics
 
 
 def invert_tags(old: dict, new: dict, current: dict) -> None:
@@ -178,7 +207,7 @@ def invert_node_position(old: dict, new: dict, current: dict) -> None:
     current['@lon'] = old['@lon']
 
 
-def invert_way_nodes(old: dict, new: dict, current: dict) -> None:
+def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict) -> None:
     old_nodes = [json.dumps(n) for n in ensure_iterable(old['nd'])]
     new_nodes = [json.dumps(n) for n in ensure_iterable(new['nd'])]
     current_nodes = [json.dumps(n) for n in ensure_iterable(current['nd'])]
@@ -201,9 +230,14 @@ def invert_way_nodes(old: dict, new: dict, current: dict) -> None:
     if patch := dmp_retry_reverse(old_nodes, new_nodes, current_nodes):
         current['nd'] = [json.loads(p) for p in patch]
         print(f'[DMP][☑️] Patch successful')
+        statistics['dmp:success:way'] += 1
+        statistics['dmp:success:way:id'].append(new['@id'])
+    else:
+        statistics['dmp:fail:way'] += 1
+        statistics['dmp:fail:way:id'].append(new['@id'])
 
 
-def invert_relation_members(old: dict, new: dict, current: dict) -> None:
+def invert_relation_members(old: dict, new: dict, current: dict, statistics: dict) -> None:
     old_members = [json.dumps(m) for m in ensure_iterable(old['member'])]
     new_members = [json.dumps(m) for m in ensure_iterable(new['member'])]
     current_members = [json.dumps(m) for m in ensure_iterable(current['member'])]
@@ -226,3 +260,8 @@ def invert_relation_members(old: dict, new: dict, current: dict) -> None:
     if patch := dmp_retry_reverse(old_members, new_members, current_members):
         current['member'] = [json.loads(p) for p in patch]
         print(f'✅ Patch successful')
+        statistics['dmp:success:relation'] += 1
+        statistics['dmp:success:relation:id'].append(new['@id'])
+    else:
+        statistics['dmp:fail:relation'] += 1
+        statistics['dmp:fail:relation:id'].append(new['@id'])

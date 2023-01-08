@@ -1,8 +1,10 @@
 import os
+import time
+import traceback
 
 import fire
 
-from config import CREATED_BY
+from config import CREATED_BY, TAG_PREFIX
 from invert import invert_diff
 from osm import OsmApi
 from overpass import Overpass
@@ -23,10 +25,28 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
     return result
 
 
-# TODO: revert specific elements CS(node:123,456;way:123)
+def main_timer(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+
+        try:
+            exit_code = func(*args, **kwargs)
+        except Exception:
+            traceback.print_exc()
+            exit_code = -2
+
+        total_time = time.perf_counter() - start_time
+        print(f'🏁 Total time: {total_time:.1F} sec')
+        exit(exit_code)
+
+    return wrapper
+
+
+# TODO: revert specific elements CS(node:123,456;way:123) + subset of their elements(?)
+@main_timer
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
-         oauth_token: str = None, oauth_token_secret: str = None):
+         oauth_token: str = None, oauth_token_secret: str = None) -> int:
     changeset_ids = list(sorted(set(str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids))))
     assert changeset_ids, 'Missing changeset id'
 
@@ -48,30 +68,46 @@ def main(changeset_ids: list | str | int, comment: str,
 
         print(f'[1/2] OpenStreetMap …')
         changeset = osm.get_changeset(changeset_id)
+        changeset_partition_size = len(changeset['partition'])
 
-        print(f'[2/2] Overpass …')
+        if changeset_partition_size > 1:
+            print(f'[2/2] Overpass ({changeset_partition_size} partitions) …')
+        else:
+            print(f'[2/2] Overpass …')
+
         diff = overpass.get_changeset_elements_history(changeset)
         diffs.append(diff)
 
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
-    invert = invert_diff(merged_diffs)
+    invert, statistics = invert_diff(merged_diffs)
+    invert_size = sum(len(elements) for elements in invert.values())
 
-    if all(not elements for elements in invert.values()):
-        print(f'✅ Nothing to revert')
-        exit(0)
+    if invert_size == 0:
+        print('✅ Nothing to revert')
+        return 0
 
-    print('🌍️ Uploading changes')
+    changeset_max_size = osm.get_changeset_max_size()
+
+    if invert_size > changeset_max_size:
+        print(f'🐘 Revert is too big: {invert_size} > {changeset_max_size}')
+
+        if len(changeset_ids) > 1:
+            print(f'🐘 Hint: Try reducing the amount of changesets to revert at once')
+
+        return -1
+
+    print(f'🌍️ Uploading {invert_size} changes')
+
     if changeset_id := osm.upload_diff(invert, comment, {
         'created_by': CREATED_BY,
-        'revert:ids': ';'.join(changeset_ids)
-    }):
+        'id': ';'.join(changeset_ids)
+    } | statistics):
         print(f'✅ Success ({changeset_id})')
-        exit(0)
+        return 0
 
-    exit(-1)
+    return -1
 
 
-# TODO: report status via tags
 if __name__ == '__main__':
     fire.Fire(main)

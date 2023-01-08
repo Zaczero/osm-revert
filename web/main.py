@@ -1,6 +1,8 @@
 import os
+import re
 from typing import Optional
 
+import asyncio
 from authlib.integrations.starlette_client import OAuth
 from cachetools import TTLCache
 from fastapi import FastAPI, Request
@@ -9,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from itsdangerous import Serializer
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.websockets import WebSocket
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 oauth = OAuth()
 oauth.register(
@@ -30,6 +32,7 @@ templates = Jinja2Templates(directory='templates')
 is_https = os.getenv('HTTPS', '0') == '1'
 
 user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
+active_ws = {}
 
 
 async def fetch_user_details(request: Request) -> Optional[dict]:
@@ -97,9 +100,84 @@ async def logout(request: Request):
 
 
 @app.websocket('/ws')
-async def websocket_endpoint(ws: WebSocket):
+async def websocket(ws: WebSocket):
+    if 'token' not in ws.cookies:
+        await ws.close(401)
+        return
+
+    try:
+        session_id = secret.loads(ws.cookies['token'])['oauth_token_secret']
+    except Exception:
+        await ws.close(401)
+        return
+
+    if session_id in active_ws:
+        await ws.close(403, 'Only one WebSocket connection is allowed per user')
+        return
+
     await ws.accept()
 
-    while True:
-        data = await ws.receive_text()
-        await ws.send_text(f'Message text was: {data}')
+    active_ws[session_id] = ws
+
+    try:
+        while True:
+            args = await ws.receive_json()
+            last_message = await main(ws, args)
+            await ws.send_json({'message': last_message, 'last': True})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        await ws.close(1011, str(e))
+    finally:
+        active_ws.pop(session_id, None)
+
+
+async def main(ws: WebSocket, args: dict) -> str:
+    assert 'changesets' in args, 'Bad request'
+    assert 'comment' in args, 'Bad request'
+
+    changesets = re.split(r'(;|,|\s)+', args['changesets'])
+    changesets = [c.strip() for c in changesets if c.strip()]
+    comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
+
+    if not changesets:
+        return '❗️ No changesets were provided'
+
+    if not comment:
+        return '❗️ No comment was provided for the changes'
+
+    if not all(c.isnumeric() for c in changesets):
+        return '❗️ One or more changesets contain non-numeric characters'
+
+    token = secret.loads(ws.cookies['token'])
+    version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
+    consumer_key = os.getenv('CONSUMER_KEY')
+    consumer_secret = os.getenv('CONSUMER_SECRET')
+
+    process = await asyncio.create_subprocess_exec(
+        'docker', 'run', '--rm',
+        '--env', f'OSM_REVERT_VERSION_SUFFIX={version_suffix}',
+        '--env', f'CONSUMER_KEY={consumer_key}',
+        '--env', f'CONSUMER_SECRET={consumer_secret}',
+        'zaczero/osm-revert',
+        '--changeset_ids', ','.join(changesets),
+        '--comment', comment,
+        '--oauth_token', token['oauth_token'],
+        '--oauth_token_secret', token['oauth_token_secret'],
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT)
+
+    try:
+        while True:
+            line = await process.stdout.readline()
+
+            if not line:
+                break
+
+            await ws.send_json({'message': line.decode('utf-8').strip()})
+    finally:
+        if process.returncode is None:
+            process.kill()
+
+    return f'Exit code: {process.returncode}'

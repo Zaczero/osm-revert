@@ -5,7 +5,7 @@ import xmltodict
 from httpx import Client
 
 from config import USER_AGENT
-from utils import ensure_iterable
+from utils import ensure_iterable, get_http_client
 
 
 def parse_timestamp(timestamp: str) -> int:
@@ -13,20 +13,15 @@ def parse_timestamp(timestamp: str) -> int:
     return int(datetime.strptime(timestamp, date_format).timestamp())
 
 
-def get_changeset_adiff(changeset: dict) -> str:
-    date_from = changeset['osm']['changeset']['@created_at']
-    date_to = changeset['osm']['changeset']['@closed_at']
-
+def get_changeset_adiff(timestamp: str) -> str:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
-    created_at_minus_one = (datetime.strptime(date_from, date_format) - timedelta(seconds=1)).strftime(date_format)
+    created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
 
-    return f'"{created_at_minus_one}","{date_to}"'
+    return f'"{created_at_minus_one}","{timestamp}"'
 
 
-def get_current_adiff(changeset: dict) -> str:
-    date_from = changeset['osm']['changeset']['@created_at']
-
-    return f'"{date_from}"'
+def get_current_adiff(timestamp: str) -> str:
+    return f'"{timestamp}"'
 
 
 def get_changeset_ids(changeset: dict) -> dict:
@@ -72,7 +67,7 @@ def get_current_map(actions: list) -> dict:
         'relation': {}
     }
 
-    for action in ensure_iterable(actions):
+    for action in actions:
         if action['@type'] == 'create':
             element_type, element = next(iter((k, v) for k, v in action.items() if not k.startswith('@')))
         else:
@@ -92,31 +87,33 @@ def ensure_visible_tag(element: Optional[dict]) -> None:
 
 class Overpass:
     def __init__(self):
-        # TODO: self-hosted for available BBOX
-        # self.base_url = 'https://overpass.monicz.pl/api/interpreter'
+        # TODO: self-hosted
+        # self.base_url = 'https://overpass.monicz.dev/api/interpreter'
         self.base_url = 'https://overpass-api.de/api/interpreter'
 
     def get_changeset_elements_history(self, changeset: dict) -> dict:
-        changeset_adiff = get_changeset_adiff(changeset)
-        current_adiff = get_current_adiff(changeset)
-        element_ids = get_changeset_ids(changeset)
-        query_by_ids = build_query_by_ids(element_ids)
+        changeset_action = []
+        current_action = []
 
-        with Client(headers={'user-agent': USER_AGENT}) as c:
-            changeset_resp = c.post(self.base_url, data={
-                'data': f'[timeout:180][adiff:{changeset_adiff}];{query_by_ids}out meta;'
-            }, timeout=300)
-            changeset_resp.raise_for_status()
+        with get_http_client() as c:
+            for timestamp, element_ids in changeset['partition'].items():
+                changeset_adiff = get_changeset_adiff(timestamp)
+                current_adiff = get_current_adiff(timestamp)
+                query_by_ids = build_query_by_ids(element_ids)
 
-            current_resp = c.post(self.base_url, data={
-                'data': f'[timeout:180][adiff:{current_adiff}];{query_by_ids}out meta;'
-            }, timeout=300)
-            current_resp.raise_for_status()
+                changeset_data = f'[timeout:180][adiff:{changeset_adiff}];{query_by_ids}out meta;'
+                changeset_resp = c.post(self.base_url, data={'data': changeset_data}, timeout=300)
+                changeset_resp.raise_for_status()
+                changeset_diff = xmltodict.parse(changeset_resp.text)
+                changeset_action.extend(ensure_iterable(changeset_diff['osm'].get('action', [])))
 
-        changeset_diff = xmltodict.parse(changeset_resp.text)
-        current_diff = xmltodict.parse(current_resp.text)
+                current_data = f'[timeout:180][adiff:{current_adiff}];{query_by_ids}out meta;'
+                current_resp = c.post(self.base_url, data={'data': current_data}, timeout=300)
+                current_resp.raise_for_status()
+                current_diff = xmltodict.parse(current_resp.text)
+                current_action.extend(ensure_iterable(current_diff['osm'].get('action', [])))
 
-        current_map = get_current_map(current_diff['osm'].get('action', []))
+        current_map = get_current_map(current_action)
 
         result = {
             'node': [],
@@ -124,7 +121,7 @@ class Overpass:
             'relation': []
         }
 
-        for action in ensure_iterable(changeset_diff['osm'].get('action', [])):
+        for action in changeset_action:
             if action['@type'] == 'create':
                 element_old = None
                 element_type, element_new = next((k, v) for k, v in action.items() if not k.startswith('@'))
