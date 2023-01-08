@@ -73,6 +73,7 @@
 
         ws.onclose = e => {
             setIsReverting(true)
+            submit.value = 'Disconnected'
             log.value = `⚠️ WebSocket was disconnected: ${e.reason}\n⚠️ Please reload the page`
         }
 
