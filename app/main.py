@@ -4,7 +4,7 @@ import traceback
 
 import fire
 
-from config import CREATED_BY, TAG_PREFIX
+from config import CREATED_BY, TAG_PREFIX, WEBSITE
 from invert import invert_diff
 from osm import OsmApi
 from overpass import Overpass
@@ -101,9 +101,11 @@ def main(changeset_ids: list | str | int, comment: str,
 
     if changeset_id := osm.upload_diff(invert, comment, {
         'created_by': CREATED_BY,
+        'website': WEBSITE,
         'id': ';'.join(changeset_ids)
     } | statistics):
-        print(f'✅ Success ({changeset_id})')
+        print(f'✅ Success')
+        print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
         return 0
 
     return -1

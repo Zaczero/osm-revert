@@ -177,6 +177,9 @@ class OsmApi:
                 print(f'Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
                 extra_tags[key] = value[:252] + '…'
 
+            if not value:
+                del extra_tags[key]
+
         with get_http_client(auth=self.auth, headers={'Content-Type': 'text/xml; charset=utf-8'}) as c:
             changeset = {'osm': {'changeset': {'tag': [
                 {'@k': k, '@v': v} for k, v in extra_tags.items()

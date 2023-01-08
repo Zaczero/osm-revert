@@ -153,12 +153,14 @@ async def main(ws: WebSocket, args: dict) -> str:
 
     token = secret.loads(ws.cookies['token'])
     version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
+    website = os.getenv('OSM_REVERT_WEBSITE', '')
     consumer_key = os.getenv('CONSUMER_KEY')
     consumer_secret = os.getenv('CONSUMER_SECRET')
 
     process = await asyncio.create_subprocess_exec(
         'docker', 'run', '--rm',
         '--env', f'OSM_REVERT_VERSION_SUFFIX={version_suffix}',
+        '--env', f'OSM_REVERT_WEBSITE={website}',
         '--env', f'CONSUMER_KEY={consumer_key}',
         '--env', f'CONSUMER_SECRET={consumer_secret}',
         'zaczero/osm-revert',
