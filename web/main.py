@@ -142,11 +142,14 @@ async def main(ws: WebSocket, args: dict) -> str:
     if not changesets:
         return '❗️ No changesets were provided'
 
-    if not comment:
-        return '❗️ No comment was provided for the changes'
+    if len(changesets) > 10:
+        return '❗️ For safety, you can only revert up to 10 changesets at a time'
 
     if not all(c.isnumeric() for c in changesets):
         return '❗️ One or more changesets contain non-numeric characters'
+
+    if not comment:
+        return '❗️ No comment was provided for the changes'
 
     token = secret.loads(ws.cookies['token'])
     version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
