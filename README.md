@@ -4,7 +4,7 @@
 [![GitHub](https://img.shields.io/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
 [![GitHub repo stars](https://img.shields.io/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
 
-The next generation OpenStreetMap revert tool.
+The next generation OpenStreetMap changeset revert tool.
 
 You can access the **official instance** of osm-revert at [revert.monicz.dev](https://revert.monicz.dev).
 
