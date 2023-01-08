@@ -1,6 +1,5 @@
 # 🗺️ osm-revert
 
-![GitHub Pipenv locked Python version](https://img.shields.io/github/pipenv/locked/python-version/Zaczero/osm-revert)
 [![GitHub](https://img.shields.io/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
 
