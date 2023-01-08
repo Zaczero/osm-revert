@@ -24,7 +24,7 @@
 
         <div style="margin-bottom: .2em"></div>
 
-        <input id="submit" type="submit" value="Run the revert" disabled>
+        <input id="submit" type="submit" value="Connecting…" disabled>
 
         <div style="margin-bottom: 1.2em"></div>
 
@@ -51,6 +51,7 @@
         }
 
         ws.onopen = () => {
+            submit.value = 'Run the revert'
             setIsReverting(false)
         }
 
@@ -62,8 +63,12 @@
             if (isAutoScrolling && log.scrollHeight > log.clientHeight)
                 log.scrollTop = log.scrollHeight
 
-            if (obj.last === true)
+            if (obj.last === true) {
+                if (obj.message === "Exit code: 0")
+                    changesets.value = ''
+
                 setIsReverting(false)
+            }
         }
 
         ws.onclose = e => {
