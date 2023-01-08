@@ -29,7 +29,6 @@ app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
 secret = Serializer(os.getenv('INSTANCE_SECRET'))
 templates = Jinja2Templates(directory='templates')
-is_https = os.getenv('HTTPS', '0') == '1'
 
 user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
 active_ws = {}
@@ -84,9 +83,8 @@ async def callback(request: Request):
     response = RedirectResponse(request.url_for('index'))
     response.set_cookie('token', secret.dumps(token),
                         max_age=(3600 * 24 * 365),
-                        secure=is_https,
-                        httponly=True,
-                        samesite='strict' if is_https else 'lax')
+                        secure=request.url.scheme == 'https',
+                        httponly=True)
 
     return response
 
