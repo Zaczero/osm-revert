@@ -4,7 +4,7 @@ import traceback
 
 import fire
 
-from config import CREATED_BY, TAG_PREFIX, WEBSITE
+from config import CREATED_BY, WEBSITE
 from invert import invert_diff
 from osm import OsmApi
 from overpass import Overpass
@@ -76,6 +76,10 @@ def main(changeset_ids: list | str | int, comment: str,
             print(f'[2/2] Overpass …')
 
         diff = overpass.get_changeset_elements_history(changeset)
+
+        if not diff:
+            return -1
+
         diffs.append(diff)
 
     print('🔁 Generating a revert')

@@ -1,5 +1,5 @@
 import functools
-from typing import Iterable, Optional
+from typing import Optional, Sized
 
 from requests import Session
 
@@ -7,7 +7,7 @@ from config import USER_AGENT
 from diff_match_patch import diff_match_patch
 
 
-def ensure_iterable(item) -> Iterable:
+def ensure_iterable(item) -> list | tuple:
     if isinstance(item, list) or isinstance(item, tuple):
         return item
 
