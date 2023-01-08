@@ -72,9 +72,10 @@
         }
 
         ws.onclose = e => {
+            console.log(e)
             setIsReverting(true)
             submit.value = 'Disconnected'
-            log.value = `⚠️ WebSocket was disconnected: ${e.reason}\n⚠️ Please reload the page`
+            log.value = `⚠️ Disconnected: ${e.reason}\n⚠️ Please reload the page`
         }
 
         form.addEventListener('submit', e => {

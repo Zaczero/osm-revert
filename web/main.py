@@ -99,21 +99,21 @@ async def logout(request: Request):
 
 @app.websocket('/ws')
 async def websocket(ws: WebSocket):
+    await ws.accept()
+
     if 'token' not in ws.cookies:
-        await ws.close(401)
+        await ws.close(1008)
         return
 
     try:
         session_id = secret.loads(ws.cookies['token'])['oauth_token_secret']
     except Exception:
-        await ws.close(401)
+        await ws.close(1008)
         return
 
     if session_id in active_ws:
-        await ws.close(403, 'Only one WebSocket connection is allowed per user')
+        await ws.close(1008, 'Only one WebSocket connection is allowed per user')
         return
-
-    await ws.accept()
 
     active_ws[session_id] = ws
 
