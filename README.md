@@ -1,7 +1,8 @@
 # 🗺️ osm-revert
 
+![Python version](https://img.shields.io/badge/python-v3.10-blue)
 [![GitHub](https://img.shields.io/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
-[![GitHub Repo stars](https://img.shields.io/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
+[![GitHub repo stars](https://img.shields.io/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
 
 The next generation OpenStreetMap revert tool.
 
