@@ -166,19 +166,27 @@ class OsmApi:
         extra_tags['comment'] = comment
 
         for key, value in list(extra_tags.items()):
-            assert not value.startswith(TAG_PREFIX)
+            assert not key.startswith(TAG_PREFIX)
 
+            if not value:
+                del extra_tags[key]
+                continue
+
+            # stringify the value
+            if not isinstance(value, str):
+                value = str(value)
+                extra_tags[key] = value
+
+            # add revert: prefix if applicable
             if key not in NO_TAG_PREFIX:
                 del extra_tags[key]
                 key = f'{TAG_PREFIX}:{key}'
                 extra_tags[key] = value
 
+            # trim value if too long
             if len(value) > TAG_MAX_LENGTH:
                 print(f'Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
                 extra_tags[key] = value[:252] + '…'
-
-            if not value:
-                del extra_tags[key]
 
         with get_http_client(auth=self.auth, headers={'Content-Type': 'text/xml; charset=utf-8'}) as c:
             changeset = {'osm': {'changeset': {'tag': [
