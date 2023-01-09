@@ -49,17 +49,11 @@ def get_diff_ids(diff: dict) -> dict:
 
 
 def build_query_by_ids(element_ids: dict) -> (str, int):
-    query_size = 0
-
-    result = '('
-
-    for element_type, element_ids in element_ids.items():
-        query_size += len(element_ids)
-
-        if text_ids := ','.join(element_ids):
-            result += f'{element_type}(id:{text_ids});'
-
-    return result + ');', query_size
+    return f'(' \
+           f'node(id:{",".join(element_ids["node"]) if element_ids["node"] else "-1"});' \
+           f'way(id:{",".join(element_ids["way"]) if element_ids["way"] else "-1"});' \
+           f'rel(id:{",".join(element_ids["relation"]) if element_ids["relation"] else "-1"});' \
+           f');', sum(len(el) for el in element_ids.values())
 
 
 def build_query_parents_by_ids(element_ids: dict) -> str:
