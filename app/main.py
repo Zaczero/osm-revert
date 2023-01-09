@@ -45,6 +45,7 @@ def main_timer(func):
 
 # TODO: revert specific elements CS(node:123,456;way:123) + subset of their elements(?)
 # TODO: util function to ensure tags existence and type
+# TODO: slow but very accurate revert (download full history of future edits); overpass-api: timeline
 @main_timer
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
