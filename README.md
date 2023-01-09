@@ -6,7 +6,7 @@
 
 The next generation OpenStreetMap changeset revert tool.
 
-You can access the **official instance** of osm-revert at [revert.monicz.dev](https://revert.monicz.dev).
+You can access the **official instance** of osm-revert at [revert.monicz.dev](https://revert.monicz.dev)
 
 ## Highlights
 
@@ -21,6 +21,10 @@ This reverter uses [Google's diff-match-patch](https://github.com/google/diff-ma
 ### ♾️ Limitless
 
 This reverter has no arbitrary limits on the changeset size.
+
+## Preview
+
+<img width="50%" src="https://github.com/Zaczero/osm-revert/blob/main/icon/osm-revert.gif?raw=true" alt="Tool demo">
 
 ## Footer
 
