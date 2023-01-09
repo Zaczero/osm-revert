@@ -8,7 +8,6 @@ fastapi = "*"
 uvicorn = {extras = ["standard"], version = "*"}
 authlib = "*"
 starlette = "*"
-httpx = "*"
 itsdangerous = "*"
 jinja2 = "*"
 cachetools = "*"
