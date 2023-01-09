@@ -29,7 +29,7 @@ This reverter has no arbitrary limits on the changeset size.
 
 ## Footer
 
-### Inspiration
+### Credits
 
 This project was inspired by the work of [Zverik](https://github.com/Zverik) and his [RevertUI](https://github.com/Zverik/RevertUI).
 
