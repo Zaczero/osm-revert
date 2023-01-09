@@ -135,12 +135,12 @@ async def websocket(ws: WebSocket):
 
 
 async def main(ws: WebSocket, args: dict) -> str:
-    assert 'changesets' in args, 'Bad request'
-    assert 'comment' in args, 'Bad request'
+    assert 'changesets' in args and 'comment' in args and 'upload' in args, 'Bad request'
 
     changesets = re.split(r'(;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
     comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
+    upload = args['upload']
 
     if not changesets:
         return '❗️ No changesets were provided'
@@ -151,14 +151,21 @@ async def main(ws: WebSocket, args: dict) -> str:
     if not all(c.isnumeric() for c in changesets):
         return '❗️ One or more changesets contain non-numeric characters'
 
-    if not comment:
-        return '❗️ No comment was provided for the changes'
+    # upload specific requirements
+    if upload:
+        if not comment:
+            return '❗️ No comment was provided for the changes'
 
     token = secret.loads(ws.cookies['token'])
     version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
     website = os.getenv('OSM_REVERT_WEBSITE', '')
     consumer_key = os.getenv('CONSUMER_KEY')
     consumer_secret = os.getenv('CONSUMER_SECRET')
+
+    if upload:
+        extra_args = []
+    else:
+        extra_args = ['--print_osc', 'True']
 
     process = await asyncio.create_subprocess_exec(
         'docker', 'run', '--rm',
@@ -171,6 +178,7 @@ async def main(ws: WebSocket, args: dict) -> str:
         '--comment', comment,
         '--oauth_token', token['oauth_token'],
         '--oauth_token_secret', token['oauth_token_secret'],
+        *extra_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT)
 
@@ -181,7 +189,7 @@ async def main(ws: WebSocket, args: dict) -> str:
             if not line:
                 break
 
-            await ws.send_json({'message': line.decode('utf-8').strip()})
+            await ws.send_json({'message': line.decode('utf-8').rstrip()})
     finally:
         if process.returncode is None:
             process.kill()
