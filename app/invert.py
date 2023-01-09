@@ -71,7 +71,7 @@ def invert_diff(diff: dict) -> (dict, dict):
                     print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
                     statistics[f'fix:{element_type}'] += 1
 
-                    current['tag'] = ensure_iterable(current['tag'])
+                    current['tag'] = ensure_iterable(current.get('tag', []))
                     current_original = deepcopy(current)
 
                     invert_tags(old, new, current)
@@ -117,9 +117,9 @@ def invert_diff(diff: dict) -> (dict, dict):
 
 
 def invert_tags(old: dict, new: dict, current: dict) -> None:
-    old['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(old['tag'])}
-    new['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(new['tag'])}
-    current['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(current['tag'])}
+    old['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(old.get('tag', []))}
+    new['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(new.get('tag', []))}
+    current['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(current.get('tag', []))}
 
     invert_tags_create(old, new, current)
     invert_tags_modify(old, new, current)
@@ -201,9 +201,9 @@ def invert_node_position(old: dict, new: dict, current: dict) -> None:
 
 
 def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict) -> None:
-    old_nodes = [json.dumps(n) for n in ensure_iterable(old['nd'])]
-    new_nodes = [json.dumps(n) for n in ensure_iterable(new['nd'])]
-    current_nodes = [json.dumps(n) for n in ensure_iterable(current['nd'])]
+    old_nodes = [json.dumps(n) for n in ensure_iterable(old.get('nd', []))]
+    new_nodes = [json.dumps(n) for n in ensure_iterable(new.get('nd', []))]
+    current_nodes = [json.dumps(n) for n in ensure_iterable(current.get('nd', []))]
 
     # ignore unmodified
     if old_nodes == new_nodes:
@@ -231,9 +231,9 @@ def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict) -> N
 
 
 def invert_relation_members(old: dict, new: dict, current: dict, statistics: dict) -> None:
-    old_members = [json.dumps(m) for m in ensure_iterable(old['member'])]
-    new_members = [json.dumps(m) for m in ensure_iterable(new['member'])]
-    current_members = [json.dumps(m) for m in ensure_iterable(current['member'])]
+    old_members = [json.dumps(m) for m in ensure_iterable(old.get('member', []))]
+    new_members = [json.dumps(m) for m in ensure_iterable(new.get('member', []))]
+    current_members = [json.dumps(m) for m in ensure_iterable(current.get('member', []))]
 
     # ignore unmodified
     if old_members == new_members:

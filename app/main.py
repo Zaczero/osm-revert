@@ -43,6 +43,7 @@ def main_timer(func):
 
 
 # TODO: revert specific elements CS(node:123,456;way:123) + subset of their elements(?)
+# TODO: util function to ensure tags existence and type
 @main_timer
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
@@ -85,6 +86,11 @@ def main(changeset_ids: list | str | int, comment: str,
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
     invert, statistics = invert_diff(merged_diffs)
+    parents = overpass.update_parents(invert)
+
+    if parents:
+        print(f'🛠️ Fixing {parents} parent{"s" if parents > 1 else ""}')
+
     invert_size = sum(len(elements) for elements in invert.values())
 
     if invert_size == 0:

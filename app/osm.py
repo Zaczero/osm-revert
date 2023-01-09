@@ -50,7 +50,6 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
     return visible
 
 
-# TODO: deleting item should remove member from others?
 def build_osm_change(diff: dict, changeset_id: str) -> dict:
     result = {'osmChange': {
         '@version': 0.6,

@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -61,6 +60,13 @@ def build_query_by_ids(element_ids: dict) -> (str, int):
             result += f'{element_type}(id:{text_ids});'
 
     return result + ');', query_size
+
+
+def build_query_parents_by_ids(element_ids: dict) -> str:
+    return f'node(id:{",".join(element_ids["node"]) if element_ids["node"] else "-1"})->.n;' \
+           f'way(id:{",".join(element_ids["way"]) if element_ids["way"] else "-1"})->.w;' \
+           f'rel(id:{",".join(element_ids["relation"]) if element_ids["relation"] else "-1"})->.r;' \
+           f'(way(bn.n);rel(bn.n);rel(bw.w);rel(br.r););'
 
 
 def get_current_map(actions: list) -> dict:
@@ -184,3 +190,71 @@ class Overpass:
             result[element_type].append((timestamp, element_id, element_old, element_new, element_current))
 
         return result
+
+    def update_parents(self, invert: dict) -> int:
+        base_url = self.base_urls[0]
+
+        invert_ids = {
+            'node': {e['@id'] for e in invert['node']},
+            'way': {e['@id'] for e in invert['way']},
+            'relation': {e['@id'] for e in invert['relation']}
+        }
+
+        deleting_ids = {
+            'node': {e['@id'] for e in invert['node'] if e['@visible'] == 'false'},
+            'way': {e['@id'] for e in invert['way'] if e['@visible'] == 'false'},
+            'relation': {e['@id'] for e in invert['relation'] if e['@visible'] == 'false'}
+        }
+
+        if sum(len(el) for el in deleting_ids.values()) == 0:
+            return 0
+
+        query_by_ids = build_query_parents_by_ids(deleting_ids)
+
+        with get_http_client() as c:
+            parents_data = f'[timeout:180];{query_by_ids}out meta;'
+            parents_resp = c.post(base_url, data={'data': parents_data}, timeout=300)
+            parents_resp.raise_for_status()
+            data = xmltodict.parse(parents_resp.text)
+
+        parents = {
+            'node': ensure_iterable(data['osm'].get('node', [])),
+            'way': ensure_iterable(data['osm'].get('way', [])),
+            'relation': ensure_iterable(data['osm'].get('relation', [])),
+        }
+
+        fixed_parents = 0
+
+        for element_type, elements in parents.items():
+            for element in elements:
+                if element['@id'] in invert_ids[element_type]:
+                    continue
+
+                if element_type == 'way':
+                    element['nd'] = [
+                        n for n in ensure_iterable(element.get('nd', []))
+                        if n['@ref'] not in deleting_ids['node']
+                    ]
+
+                    # delete single node ways
+                    if len(element['nd']) == 1:
+                        element['nd'] = []
+
+                    if not element['nd']:
+                        element['@visible'] = 'false'
+                elif element_type == 'relation':
+                    element['member'] = [
+                        m for m in ensure_iterable(element.get('member', []))
+                        if m['@ref'] not in deleting_ids[m['@type']]
+                    ]
+
+                    if not element['member']:
+                        element['@visible'] = 'false'
+                else:
+                    raise
+
+                ensure_visible_tag(element)
+                invert[element_type].append(element)
+                fixed_parents += 1
+
+        return fixed_parents
