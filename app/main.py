@@ -5,7 +5,7 @@ import traceback
 import fire
 import xmltodict
 
-from config import CREATED_BY, WEBSITE
+from config import CREATED_BY, WEBSITE, USER_MIN_EDITS
 from invert import invert_diff
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
@@ -59,7 +59,12 @@ def main(changeset_ids: list | str | int, comment: str,
 
     print('🔒️ Logging in to OpenStreetMap')
     osm = OsmApi(username=username, password=password, oauth_token=oauth_token, oauth_token_secret=oauth_token_secret)
-    print(f'👤 Welcome, {osm.get_authorized_display_name()}!')
+    user = osm.get_authorized_user()
+    print(f'👤 Welcome, {user["display_name"]}!')
+
+    if user['changesets']['count'] < USER_MIN_EDITS:
+        print(f'🐥 You need at least {USER_MIN_EDITS} edits to use this tool')
+        return -1
 
     overpass = Overpass()
 

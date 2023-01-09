@@ -118,12 +118,12 @@ class OsmApi:
 
         return int(caps['osm']['api']['changesets']['@maximum_elements'])
 
-    def get_authorized_display_name(self) -> str:
+    def get_authorized_user(self) -> dict:
         with get_http_client(auth=self.auth) as c:
             resp = c.get(f'{self.base_url}/user/details.json')
             resp.raise_for_status()
 
-        return resp.json()['user']['display_name']
+        return resp.json()['user']
 
     def get_changeset(self, changeset_id: int) -> dict:
         with get_http_client() as c:
