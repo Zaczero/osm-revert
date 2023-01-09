@@ -58,6 +58,9 @@ async def fetch_user_details(request: Request) -> Optional[dict]:
         except Exception:
             return None
 
+        if 'img' not in user:
+            user['img'] = {'href': None}
+
         user_cache[user_cache_key] = user
         return user
 

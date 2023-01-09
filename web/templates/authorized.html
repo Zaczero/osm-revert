@@ -1,7 +1,9 @@
 {% extends '_base.html' %}
 {% block body %}
 
+    {% if user.img.href %}
     <img src="{{ user.img.href }}" width="16" height="16" alt="Profile picture">
+    {% endif %}
 
     <h2 style="display: inline; margin-left: .1em">{{ user.display_name }}</h2>
 
