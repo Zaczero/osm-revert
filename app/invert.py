@@ -65,9 +65,8 @@ def invert_diff(diff: dict) -> (dict, dict):
                 # simple revert
                 if current['@version'] == new['@version']:
                     current_map[element_type][element_id] = deepcopy(old)
-
-                # advanced revert
-                else:
+                # advanced revert (element currently is not deleted)
+                elif current['@visible'] == 'true':
                     print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
                     statistics[f'fix:{element_type}'] += 1
 
