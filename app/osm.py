@@ -4,7 +4,7 @@ from typing import Optional
 import xmltodict
 from authlib.integrations.requests_client import OAuth1Auth
 
-from config import TAG_MAX_LENGTH, NO_TAG_PREFIX, TAG_PREFIX
+from config import TAG_MAX_LENGTH, NO_TAG_PREFIX, TAG_PREFIX, CREATED_BY
 from utils import ensure_iterable, get_http_client
 
 
@@ -50,9 +50,10 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
     return visible
 
 
-def build_osm_change(diff: dict, changeset_id: str) -> dict:
+def build_osm_change(diff: dict, changeset_id: Optional[str]) -> dict:
     result = {'osmChange': {
         '@version': 0.6,
+        '@generator': CREATED_BY,
         'modify': {
             'node': [],
             'way': [],
@@ -69,7 +70,10 @@ def build_osm_change(diff: dict, changeset_id: str) -> dict:
             elements = sort_relations_for_osm_change(elements)
 
         for element in elements:
-            element['@changeset'] = changeset_id
+            if changeset_id:
+                element['@changeset'] = changeset_id
+            else:
+                del element['@changeset']
 
             if element['@visible'] == 'true':
                 action = 'modify'

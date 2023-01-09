@@ -3,10 +3,11 @@ import time
 import traceback
 
 import fire
+import xmltodict
 
 from config import CREATED_BY, WEBSITE
 from invert import invert_diff
-from osm import OsmApi
+from osm import OsmApi, build_osm_change
 from overpass import Overpass
 from utils import ensure_iterable
 
@@ -47,7 +48,8 @@ def main_timer(func):
 @main_timer
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
-         oauth_token: str = None, oauth_token_secret: str = None) -> int:
+         oauth_token: str = None, oauth_token_secret: str = None,
+         osc_file: str = None, print_osc: bool = None) -> int:
     changeset_ids = list(sorted(set(str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids))))
     assert changeset_ids, 'Missing changeset id'
 
@@ -107,16 +109,35 @@ def main(changeset_ids: list | str | int, comment: str,
 
         return -1
 
-    print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
+    if osc_file or print_osc:
+        print(f'💾 Saving {invert_size} change{"s" if invert_size > 1 else ""} to .osc')
 
-    if changeset_id := osm.upload_diff(invert, comment, {
-        'created_by': CREATED_BY,
-        'website': WEBSITE,
-        'id': ';'.join(changeset_ids)
-    } | statistics):
+        osm_change = build_osm_change(invert, changeset_id=None)
+        osm_change_xml = xmltodict.unparse(osm_change, pretty=True)
+
+        if osc_file:
+            with open(osc_file, 'w', encoding='utf-8') as f:
+                f.write(osm_change_xml)
+
+        if print_osc:
+            print('<osc>')
+            print(osm_change_xml)
+            print('</osc>')
+
         print(f'✅ Success')
-        print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
         return 0
+
+    else:
+        print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
+
+        if changeset_id := osm.upload_diff(invert, comment, {
+                                                                'created_by': CREATED_BY,
+                                                                'website': WEBSITE,
+                                                                'id': ';'.join(changeset_ids)
+                                                            } | statistics):
+            print(f'✅ Success')
+            print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
+            return 0
 
     return -1
 
