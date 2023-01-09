@@ -1,4 +1,4 @@
-# 🗺️ osm-revert
+# <img height="24" src="https://github.com/Zaczero/osm-revert/blob/main/icon/osm-revert.png?raw=true" alt="🗺️"> osm-revert
 
 ![Python version](https://img.shields.io/badge/python-v3.10-blue)
 [![GitHub](https://img.shields.io/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
@@ -6,7 +6,12 @@
 
 The next generation OpenStreetMap changeset revert tool.
 
-You can access the **official instance** of osm-revert at [revert.monicz.dev](https://revert.monicz.dev)
+You can access the **official instance** of osm-revert at [revert.monicz.dev](https://revert.monicz.dev).
+
+<details>
+<summary>Demo (GIF)</summary>
+<img width="50%" src="https://github.com/Zaczero/osm-revert/blob/main/icon/osm-revert.gif?raw=true" alt="Tool demo">
+</details>
 
 ## Highlights
 
@@ -21,10 +26,6 @@ This reverter uses [Google's diff-match-patch](https://github.com/google/diff-ma
 ### ♾️ Limitless
 
 This reverter has no arbitrary limits on the changeset size.
-
-## Preview
-
-<img width="50%" src="https://github.com/Zaczero/osm-revert/blob/main/icon/osm-revert.gif?raw=true" alt="Tool demo">
 
 ## Footer
 
