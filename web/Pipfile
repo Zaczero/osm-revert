@@ -12,6 +12,7 @@ itsdangerous = "*"
 jinja2 = "*"
 cachetools = "*"
 asyncio = "*"
+httpx = "*"
 
 [dev-packages]
 
