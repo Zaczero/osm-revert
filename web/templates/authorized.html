@@ -16,7 +16,7 @@
     <div>
         <label>
             Changesets:<br>
-            <textarea id="changesets" cols="60" rows="2" placeholder="118034381, 130000000, …"></textarea>
+            <textarea id="changesets" cols="60" rows="2" placeholder="118034381, 130000000, …">{{ request.query_params.get('changesets', '') }}</textarea>
         </label><br>
 
         <label>
