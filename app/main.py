@@ -79,7 +79,9 @@ def main(changeset_ids: list | str | int, comment: str,
         changeset = osm.get_changeset(changeset_id)
         changeset_partition_size = len(changeset['partition'])
 
-        if changeset_partition_size > 1:
+        if changeset_partition_size > 5:
+            print(f'[2/2] Overpass ({changeset_partition_size} partitions, this may take a while) …')
+        elif changeset_partition_size > 1:
             print(f'[2/2] Overpass ({changeset_partition_size} partitions) …')
         else:
             print(f'[2/2] Overpass …')
