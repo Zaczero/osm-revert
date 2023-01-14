@@ -8,6 +8,9 @@ from diff_match_patch import diff_match_patch
 
 
 def ensure_iterable(item) -> list | tuple:
+    if item is None:
+        return []
+
     if isinstance(item, list) or isinstance(item, tuple):
         return item
 
