@@ -135,7 +135,8 @@ async def websocket(ws: WebSocket):
 
 
 async def main(ws: WebSocket, args: dict) -> str:
-    assert 'changesets' in args and 'comment' in args and 'upload' in args, 'Bad request'
+    for required_arg in ('changesets', 'elements', 'comment', 'upload'):
+        assert required_arg in args, f'Missing argument: {required_arg}'
 
     changesets = re.split(r'(;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
