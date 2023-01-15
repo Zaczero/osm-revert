@@ -139,14 +139,13 @@ async def main(ws: WebSocket, args: dict) -> str:
 
     changesets = re.split(r'(;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
+    elements = re.split(r'(;|,|\s)+', args['elements'])
+    elements = [e.strip() for e in elements if e.strip()]
     comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
     upload = args['upload']
 
     if not changesets:
         return '❗️ No changesets were provided'
-
-    if len(changesets) > 10:
-        return '❗️ For safety, you can only revert up to 10 changesets at a time'
 
     if not all(c.isnumeric() for c in changesets):
         return '❗️ One or more changesets contain non-numeric characters'
@@ -175,6 +174,7 @@ async def main(ws: WebSocket, args: dict) -> str:
         '--env', f'CONSUMER_SECRET={consumer_secret}',
         'zaczero/osm-revert',
         '--changeset_ids', ','.join(changesets),
+        '--element_ids', ','.join(elements),
         '--comment', comment,
         '--oauth_token', token['oauth_token'],
         '--oauth_token_secret', token['oauth_token_secret'],

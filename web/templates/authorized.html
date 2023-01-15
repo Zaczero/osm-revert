@@ -20,6 +20,11 @@
         </label><br>
 
         <label>
+            Elements filter (optional, n=node, w=way, r=relation):<br>
+            <textarea id="elements" cols="60" rows="2" placeholder="n10427025322, w941753265, r569995171, …">{{ request.query_params.get('elements', '') }}</textarea>
+        </label><br>
+
+        <label>
             Comment:<br>
             <textarea id="comment" cols="60" rows="3" placeholder="I revert it because…" maxlength="255"></textarea>
         </label><br>
@@ -40,6 +45,7 @@
     <script>
         const form = document.getElementById('form')
         const changesets = document.getElementById('changesets')
+        const elements = document.getElementById('elements')
         const comment = document.getElementById('comment')
         const submit = document.getElementById('submit')
         const submit_osc = document.getElementById('submit-osc')
@@ -100,8 +106,10 @@
             }
 
             if (obj.last === true) {
-                if (obj.message === "Exit code: 0")
+                if (obj.message === "Exit code: 0") {
                     changesets.value = ''
+                    elements.value = ''
+                }
 
                 setIsReverting(false)
             }
@@ -126,6 +134,7 @@
 
             ws.send(JSON.stringify({
                 changesets: changesets.value,
+                elements: elements.value,
                 comment: comment.value,
                 upload: true
             }))
@@ -142,6 +151,7 @@
 
             ws.send(JSON.stringify({
                 changesets: changesets.value,
+                elements: elements.value,
                 comment: comment.value,
                 upload: false
             }))
