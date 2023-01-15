@@ -6,7 +6,7 @@ from typing import Iterable
 import fire
 import xmltodict
 
-from config import CREATED_BY, WEBSITE, USER_MIN_EDITS
+from config import CREATED_BY, WEBSITE, CHANGESETS_LIMIT_CONFIG
 from invert import invert_diff
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
@@ -89,6 +89,35 @@ def main(changeset_ids: list | str | int, comment: str,
     assert changeset_ids, 'Missing changeset id'
     assert all(c.isnumeric() for c in changeset_ids), 'Changeset ids must be numeric'
 
+    if not username and not password:
+        username = os.getenv('OSM_USERNAME')
+        password = os.getenv('OSM_PASSWORD')
+
+    print('🔒️ Logging in to OpenStreetMap')
+    osm = OsmApi(username=username, password=password, oauth_token=oauth_token, oauth_token_secret=oauth_token_secret)
+    user = osm.get_authorized_user()
+
+    user_edits = user['changesets']['count']
+    user_is_moderator = 'moderator' in user['roles']
+
+    print(f'👤 Welcome, {user["display_name"]}{" 🔷" if user_is_moderator else ""}!')
+
+    changesets_limit_config = CHANGESETS_LIMIT_CONFIG['moderator' if user_is_moderator else '']
+    changesets_limit = max(v for k, v in changesets_limit_config.items() if k <= user_edits)
+
+    if changesets_limit == 0:
+        min_edits = min(k for k in changesets_limit_config.keys() if k > 0)
+        print(f'🐥 You need at least {min_edits} edits to use this tool')
+        return -1
+
+    if changesets_limit < len(changeset_ids):
+        print(f'🛟 For safety, you can only revert up to {changesets_limit} changesets at a time')
+
+        if limit_increase := min((k for k in changesets_limit_config.keys() if k > user_edits), default=None):
+            print(f'🛟 To increase this limit, make at least {limit_increase} edits')
+
+        return -1
+
     element_ids = [
         str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id
     ]
@@ -101,21 +130,7 @@ def main(changeset_ids: list | str | int, comment: str,
     else:
         element_ids_filter = None
 
-    if not username and not password:
-        username = os.getenv('OSM_USERNAME')
-        password = os.getenv('OSM_PASSWORD')
-
-    print('🔒️ Logging in to OpenStreetMap')
-    osm = OsmApi(username=username, password=password, oauth_token=oauth_token, oauth_token_secret=oauth_token_secret)
-    user = osm.get_authorized_user()
-    print(f'👤 Welcome, {user["display_name"]}!')
-
-    if user['changesets']['count'] < USER_MIN_EDITS:
-        print(f'🐥 You need at least {USER_MIN_EDITS} edits to use this tool')
-        return -1
-
     overpass = Overpass()
-
     diffs = []
 
     for changeset_id in changeset_ids:

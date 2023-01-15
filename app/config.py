@@ -9,7 +9,17 @@ WEBSITE = os.getenv('OSM_REVERT_WEBSITE', None)
 CREATED_BY = f'osm-revert {VERSION}'
 USER_AGENT = f'osm-revert/{VERSION} (+https://github.com/Zaczero/osm-revert)'
 
-USER_MIN_EDITS = 10
+CHANGESETS_LIMIT_CONFIG = {
+    '': {
+        0: 0,
+        10: 3,
+        100: 5,
+        1000: 10,
+    },
+    'moderator': {
+        0: 50
+    }
+}
 
 TAG_MAX_LENGTH = 255
 TAG_PREFIX = 'revert'
