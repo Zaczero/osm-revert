@@ -109,7 +109,7 @@ def main(changeset_ids: list | str | int, comment: str,
     user = osm.get_authorized_user()
 
     user_edits = user['changesets']['count']
-    user_is_moderator = 'moderator' in user['roles']
+    user_is_moderator = 'moderator' in user['roles'] or 'administrator' in user['roles']
 
     print(f'👤 Welcome, {user["display_name"]}{" 🔷" if user_is_moderator else ""}!')
 
