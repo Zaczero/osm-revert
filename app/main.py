@@ -95,6 +95,11 @@ def main(changeset_ids: list | str | int, comment: str,
     assert changeset_ids, 'Missing changeset id'
     assert all(c.isnumeric() for c in changeset_ids), 'Changeset ids must be numeric'
 
+    element_ids = [
+        str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id
+    ]
+    elements_filter = build_element_ids_dict(element_ids) if element_ids else None
+
     if not username and not password:
         username = os.getenv('OSM_USERNAME')
         password = os.getenv('OSM_PASSWORD')
@@ -152,11 +157,7 @@ def main(changeset_ids: list | str | int, comment: str,
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
 
-    element_ids = [
-        str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id
-    ]
-    if element_ids:
-        elements_filter = build_element_ids_dict(element_ids)
+    if elements_filter is not None:
         expanded = 0
 
         for element_type in ('relation', 'way', 'node'):
