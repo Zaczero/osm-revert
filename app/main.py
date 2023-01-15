@@ -1,6 +1,7 @@
 import os
 import time
 import traceback
+from itertools import chain
 from typing import Iterable
 
 import fire
@@ -27,19 +28,24 @@ def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, set[str]]:
     }
 
     for element_id in element_ids:
-        element_id = element_id.lower()
+        element_id = element_id.strip().lower()
 
         for element_type, value in prefixes.items():
             for prefix in value:
                 if element_id.startswith(prefix):
-                    result[element_type].add(element_id[len(prefix):].lstrip(':;.,'))
+                    element_id = element_id[len(prefix):].lstrip(':;.,').lstrip()
+
+                    if not element_id.isnumeric():
+                        raise Exception(f'{element_type.title()} element id must be numeric: {element_id}')
+
+                    result[element_type].add(element_id)
                     break
             else:
                 continue
             break
 
         else:
-            raise Exception(f'Invalid element filter format: {element_id}')
+            raise Exception(f'Unknown element filter format: {element_id}')
 
     return result
 
@@ -118,18 +124,6 @@ def main(changeset_ids: list | str | int, comment: str,
 
         return -1
 
-    element_ids = [
-        str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id
-    ]
-    if element_ids:
-        print(f'🪣 Filtering enabled: {len(element_ids)} element{"s" if len(element_ids) > 1 else ""}')
-        element_ids_filter = build_element_ids_dict(element_ids)
-        assert all(c.isnumeric() for c in element_ids_filter['node']), 'Node element ids must be numeric'
-        assert all(c.isnumeric() for c in element_ids_filter['way']), 'Way element ids must be numeric'
-        assert all(c.isnumeric() for c in element_ids_filter['relation']), 'Relation element ids must be numeric'
-    else:
-        element_ids_filter = None
-
     overpass = Overpass()
     diffs = []
 
@@ -138,7 +132,7 @@ def main(changeset_ids: list | str | int, comment: str,
         print(f'☁️ Downloading changeset {changeset_id}')
 
         print(f'[1/2] OpenStreetMap …')
-        changeset = osm.get_changeset(changeset_id, element_ids_filter)
+        changeset = osm.get_changeset(changeset_id)
         changeset_partition_size = len(changeset['partition'])
 
         if changeset_partition_size > 5:
@@ -157,6 +151,33 @@ def main(changeset_ids: list | str | int, comment: str,
 
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
+
+    element_ids = [
+        str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id
+    ]
+    if element_ids:
+        elements_filter = build_element_ids_dict(element_ids)
+        expanded = 0
+
+        for element_type in ('relation', 'way', 'node'):
+            merged_diffs[element_type] = [
+                t for t in merged_diffs[element_type] if t[1] in elements_filter[element_type]
+            ]
+
+            if element_type == 'way':
+                new_filter = elements_filter['node'].union(chain(
+                    n['@ref']
+                    for t in merged_diffs[element_type]
+                    for n in (ensure_iterable(t[2].get('nd', [])) + ensure_iterable(t[3].get('nd', [])))
+                ))
+
+                expanded += len(new_filter) - len(elements_filter['node'])
+                elements_filter['node'] = new_filter
+
+        print(f'🪣 Filtering enabled: {len(element_ids)} element{"s" if len(element_ids) > 1 else ""}'
+              f'{f" + {expanded} child" if expanded == 1 else ""}'
+              f'{f" + {expanded} children" if expanded > 1 else ""}')
+
     invert, statistics = invert_diff(merged_diffs)
     parents = overpass.update_parents(invert)
 

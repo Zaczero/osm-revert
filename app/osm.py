@@ -125,7 +125,7 @@ class OsmApi:
 
         return resp.json()['user']
 
-    def get_changeset(self, changeset_id: int, element_ids_filter: Optional[dict[str, set[str]]]) -> dict:
+    def get_changeset(self, changeset_id: int) -> dict:
         with get_http_client() as c:
             info_resp = c.get(f'{self.base_url}/changeset/{changeset_id}')
             info_resp.raise_for_status()
@@ -149,11 +149,6 @@ class OsmApi:
 
             for affected_element in ensure_iterable(affected_elements):
                 element_type, element = next(iter(affected_element.items()))
-
-                # apply element ids filter if set
-                if element_ids_filter is not None:
-                    if element['@id'] not in element_ids_filter[element_type]:
-                        continue
 
                 new[element_type].append(element)
 
