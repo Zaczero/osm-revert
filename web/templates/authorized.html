@@ -16,12 +16,12 @@
     <div>
         <label>
             Changesets:<br>
-            <textarea id="changesets" cols="60" rows="2" placeholder="118034381, 130000000, …">{{ request.query_params.get('changesets', '') }}</textarea>
+            <textarea id="changesets" cols="60" rows="2" placeholder="118034381, 130000000, …" spellcheck="false">{{ request.query_params.get('changesets', '') }}</textarea>
         </label><br>
 
         <label>
             Elements filter (optional, n=node, w=way, r=relation):<br>
-            <textarea id="elements" cols="60" rows="2" placeholder="n10427025322, w941753265, r569995171, …">{{ request.query_params.get('elements', '') }}</textarea>
+            <textarea id="elements" cols="60" rows="2" placeholder="n10427025322, w941753265, r569995171, …" spellcheck="false">{{ request.query_params.get('elements', '') }}</textarea>
         </label><br>
 
         <label>
