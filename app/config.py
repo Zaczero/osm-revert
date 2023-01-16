@@ -14,7 +14,7 @@ CHANGESETS_LIMIT_CONFIG = {
         0: 0,
         10: 3,
         100: 5,
-        1000: 10,
+        500: 10,
     },
     'moderator': {
         0: 50
