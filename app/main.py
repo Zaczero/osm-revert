@@ -14,11 +14,18 @@ from overpass import Overpass
 from utils import ensure_iterable
 
 
-def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, set[str]]:
+def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, dict[str, set[str]]]:
     result = {
-        'node': set(),
-        'way': set(),
-        'relation': set()
+        'include': {
+            'node': set(),
+            'way': set(),
+            'relation': set()
+        },
+        'exclude': {
+            'node': set(),
+            'way': set(),
+            'relation': set()
+        }
     }
 
     prefixes = {
@@ -30,6 +37,13 @@ def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, set[str]]:
     for element_id in element_ids:
         element_id = element_id.strip().lower()
 
+        if element_id.startswith('-'):
+            element_result = result['exclude']
+            element_id = element_id.lstrip('-').lstrip()
+        else:
+            element_result = result['include']
+            element_id = element_id.lstrip('+').lstrip()
+
         for element_type, value in prefixes.items():
             for prefix in value:
                 if element_id.startswith(prefix):
@@ -38,7 +52,7 @@ def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, set[str]]:
                     if not element_id.isnumeric():
                         raise Exception(f'{element_type.title()} element id must be numeric: {element_id}')
 
-                    result[element_type].add(element_id)
+                    element_result[element_type].add(element_id)
                     break
             else:
                 continue
@@ -83,6 +97,7 @@ def main_timer(func):
 
 # TODO: util function to ensure tags existence and type
 # TODO: slow but very accurate revert (download full history of future edits); overpass-api: timeline
+# TODO: dataclasses
 @main_timer
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
@@ -95,9 +110,10 @@ def main(changeset_ids: list | str | int, comment: str,
     assert changeset_ids, 'Missing changeset id'
     assert all(c.isnumeric() for c in changeset_ids), 'Changeset ids must be numeric'
 
-    element_ids = [
-        str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id
-    ]
+    if isinstance(element_ids, str) and ',' in element_ids:
+        element_ids = element_ids.split(',')
+
+    element_ids = [str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id]
     elements_filter = build_element_ids_dict(element_ids) if element_ids else None
 
     if not username and not password:
@@ -118,7 +134,7 @@ def main(changeset_ids: list | str | int, comment: str,
 
     if changesets_limit == 0:
         min_edits = min(k for k in changesets_limit_config.keys() if k > 0)
-        print(f'🐥 You need at least {min_edits} edits to use this tool')
+        print(f'🐥 You need to make at least {min_edits} edits to use this tool')
         return -1
 
     if changesets_limit < len(changeset_ids):
@@ -158,26 +174,37 @@ def main(changeset_ids: list | str | int, comment: str,
     merged_diffs = merge_and_sort_diffs(diffs)
 
     if elements_filter is not None:
-        expanded = 0
+        implicit = 0
 
-        for element_type in ('relation', 'way', 'node'):
-            merged_diffs[element_type] = [
-                t for t in merged_diffs[element_type] if t[1] in elements_filter[element_type]
-            ]
+        for filter_kind in ('include', 'exclude'):
+            filters = elements_filter[filter_kind]
 
-            if element_type == 'way':
-                new_filter = elements_filter['node'].union(chain(
-                    n['@ref']
-                    for t in merged_diffs[element_type]
-                    for n in (ensure_iterable(t[2].get('nd', [])) + ensure_iterable(t[3].get('nd', [])))
-                ))
+            # skip if no filters
+            if not any(v for v in filters.values()):
+                continue
 
-                expanded += len(new_filter) - len(elements_filter['node'])
-                elements_filter['node'] = new_filter
+            for element_type in ('relation', 'way', 'node'):
+                new_merged_diffs = []
 
-        print(f'🪣 Filtering enabled: {len(element_ids)} element{"s" if len(element_ids) > 1 else ""}'
-              f'{f" + {expanded} child" if expanded == 1 else ""}'
-              f'{f" + {expanded} children" if expanded > 1 else ""}')
+                for t in merged_diffs[element_type]:
+                    t_in_filters = t[1] in filters[element_type]
+
+                    # implicit filters
+                    if element_type == 'way' and t_in_filters:
+                        new_filter = filters['node'].union(chain(
+                            n['@ref']
+                            for n in (ensure_iterable(t[2].get('nd', [])) + ensure_iterable(t[3].get('nd', [])))
+                        ))
+
+                        implicit += len(new_filter) - len(filters['node'])
+                        filters['node'] = new_filter
+
+                    if (filter_kind == 'include' and t_in_filters) or (filter_kind == 'exclude' and not t_in_filters):
+                        new_merged_diffs.append(t)
+
+                merged_diffs[element_type] = new_merged_diffs
+
+        print(f'🪣 Filtering enabled: {len(element_ids)} explicit{f" + {implicit} implicit" if implicit > 1 else ""}')
 
     invert, statistics = invert_diff(merged_diffs)
     parents = overpass.update_parents(invert)
