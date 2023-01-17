@@ -225,6 +225,11 @@ def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict) -> N
         statistics['dmp:way'] += 1
         statistics['dmp:way:id'].append(new['@id'])
     else:
+        # absolute delete
+        create_diff = set(n['@ref'] for n in ensure_iterable(new.get('nd', []))) - \
+                      set(n['@ref'] for n in ensure_iterable(old.get('nd', [])))
+        current['nd'] = [n for n in ensure_iterable(current.get('nd', [])) if n['@ref'] not in create_diff]
+
         statistics['dmp:fail:way'] += 1
         statistics['dmp:fail:way:id'].append(new['@id'])
 
@@ -255,5 +260,10 @@ def invert_relation_members(old: dict, new: dict, current: dict, statistics: dic
         statistics['dmp:relation'] += 1
         statistics['dmp:relation:id'].append(new['@id'])
     else:
+        # absolute delete
+        create_diff = set(m['@ref'] for m in ensure_iterable(new.get('member', []))) - \
+                      set(m['@ref'] for m in ensure_iterable(old.get('member', [])))
+        current['member'] = [m for m in ensure_iterable(current.get('member', [])) if m['@ref'] not in create_diff]
+
         statistics['dmp:fail:relation'] += 1
         statistics['dmp:fail:relation:id'].append(new['@id'])
