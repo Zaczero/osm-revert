@@ -191,7 +191,7 @@ def main(changeset_ids: list | str | int, comment: str,
 
                     # implicit filters
                     if t_in_filters and element_type == 'way':
-                        t2_nodes = ensure_iterable(t[2].get('nd', []))
+                        t2_nodes = ensure_iterable(t[2].get('nd', [])) if t[2] else []
                         t3_nodes = ensure_iterable(t[3].get('nd', [])) if t[3] else []
 
                         new_filter = filters['node'].union(chain(
