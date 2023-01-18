@@ -190,10 +190,13 @@ def main(changeset_ids: list | str | int, comment: str,
                     t_in_filters = t[1] in filters[element_type]
 
                     # implicit filters
-                    if element_type == 'way' and t_in_filters:
+                    if t_in_filters and element_type == 'way':
+                        t2_nodes = ensure_iterable(t[2].get('nd', []))
+                        t3_nodes = ensure_iterable(t[3].get('nd', [])) if t[3] else []
+
                         new_filter = filters['node'].union(chain(
                             n['@ref']
-                            for n in (ensure_iterable(t[2].get('nd', [])) + ensure_iterable(t[3].get('nd', [])))
+                            for n in (t2_nodes + t3_nodes)
                         ))
 
                         implicit += len(new_filter) - len(filters['node'])
