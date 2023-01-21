@@ -1,3 +1,4 @@
+import html
 import re
 from datetime import datetime, timedelta
 from typing import Optional
@@ -48,14 +49,25 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
     if not query_filter.endswith(';'):
         query_filter += ';'
 
-    # expand nwr
-    for match in sorted(re.finditer(r'\b(nwr)\b(?P<expand>.*?;)', query_filter),
+    # expand nwr/nw/nr/wr
+    for match in sorted(re.finditer(r'\b(?P<group>nwr|nw|nr|wr)\b(?P<expand>.*?;)', query_filter),
                         key=lambda m: m.start(),
                         reverse=True):
         start, end = match.start(), match.end()
+        group = match.group('group')
         expand = match.group('expand')
+        expanded = ''
 
-        query_filter = query_filter[:start] + f'node{expand}way{expand}rel{expand}' + query_filter[end:]
+        if 'n' in group:
+            expanded += f'node{expand}'
+
+        if 'w' in group:
+            expanded += f'way{expand}'
+
+        if 'r' in group:
+            expanded += f'relation{expand}'
+
+        query_filter = query_filter[:start] + expanded + query_filter[end:]
 
     # apply element id filtering
     for match in sorted(re.finditer(r'\b(node|way|rel(ation)?)\b', query_filter),
@@ -88,8 +100,25 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
            f'out meta;'
 
 
-def fetch_overpass(client: Session, post_url: str, data: str) -> dict:
+def fetch_overpass(client: Session, post_url: str, data: str) -> dict | str:
     response = client.post(post_url, data={'data': data}, timeout=300)
+
+    if response.status_code == 400:
+        s = response.text.find('<body>')
+        e = response.text.find('</body>')
+
+        if e > s > -1:
+            body = response.text[s + 6:e].strip()
+            body = re.sub(r'<.*?>', '', body)
+            lines = [html.unescape(line.strip()[7:])
+                     for line in body.split('\n')
+                     if line.strip().startswith('Error: ')]
+
+            if lines:
+                return '\n'.join(
+                    [f'🛑 Overpass - Bad Request:'] +
+                    [f'🛑 {line}' for line in lines])
+
     response.raise_for_status()
     return xmltodict.parse(response.text)
 
@@ -144,13 +173,15 @@ class Overpass:
         errors = []
 
         for base_url in self.base_urls:
+            if errors:
+                print(f'[2/{steps}] Retrying …')
+
             result = self._get_changeset_elements_history(changeset, steps, query_filter, base_url)
 
             # everything ok
             if isinstance(result, dict):
                 return result
 
-            print(f'[2/{steps}] Retrying …')
             errors.append(result)
 
         # all errors are the same
@@ -180,6 +211,21 @@ class Overpass:
 
         with get_http_client() as c:
             for i, (timestamp, element_ids) in enumerate(sorted(changeset['partition'].items(), key=lambda t: t[0])):
+                partition_adiff = get_changeset_adiff(timestamp)
+                current_adiff = get_current_adiff(timestamp)
+                query_filtered = build_query_filtered(element_ids, query_filter)
+
+                partition_query = f'[timeout:180]{partition_adiff};{query_filtered}'
+                partition_diff = fetch_overpass(c, base_url + '/interpreter', partition_query)
+
+                if isinstance(partition_diff, str):
+                    return partition_diff
+
+                partition_action = ensure_iterable(partition_diff['osm'].get('action', []))
+
+                if parse_timestamp(partition_diff['osm']['meta']['@osm_base']) <= parse_timestamp(timestamp):
+                    return '🕒️ Overpass is updating, please try again shortly'
+
                 if query_filter:
                     old_date = get_old_date(timestamp)
                     query_unfiltered = build_query_filtered(element_ids, '')
@@ -187,26 +233,15 @@ class Overpass:
                     old_query = f'[timeout:180]{old_date};{query_unfiltered}'
                     old_data = fetch_overpass(c, base_url + '/interpreter', old_query)
 
+                    if isinstance(old_data, str):
+                        return old_data
+
                     old = {
                         'node': {e['@id']: e for e in ensure_iterable(old_data['osm'].get('node', []))},
                         'way': {e['@id']: e for e in ensure_iterable(old_data['osm'].get('way', []))},
                         'relation': {e['@id']: e for e in ensure_iterable(old_data['osm'].get('relation', []))}
                     }
-                else:
-                    old = None
 
-                partition_adiff = get_changeset_adiff(timestamp)
-                current_adiff = get_current_adiff(timestamp)
-                query_filtered = build_query_filtered(element_ids, query_filter)
-
-                partition_query = f'[timeout:180]{partition_adiff};{query_filtered}'
-                partition_diff = fetch_overpass(c, base_url + '/interpreter', partition_query)
-                partition_action = ensure_iterable(partition_diff['osm'].get('action', []))
-
-                if parse_timestamp(partition_diff['osm']['meta']['@osm_base']) <= parse_timestamp(timestamp):
-                    return '🕒️ Overpass is updating, please try again shortly'
-
-                if query_filter:
                     dedup_node_ids = set()
 
                     for action in partition_action:
@@ -248,6 +283,10 @@ class Overpass:
 
                 current_query = f'[timeout:180]{current_adiff};{query_filtered}'
                 current_diff = fetch_overpass(c, base_url + '/interpreter', current_query)
+
+                if isinstance(current_diff, str):
+                    return current_diff
+
                 current_partition_action = ensure_iterable(current_diff['osm'].get('action', []))
                 current_action.extend(current_partition_action)
 
@@ -318,6 +357,7 @@ class Overpass:
         with get_http_client() as c:
             parents_query = f'[timeout:180];{query_by_ids}'
             data = fetch_overpass(c, base_url + '/interpreter', parents_query)
+            assert isinstance(data, str), data
 
         parents = {
             'node': ensure_iterable(data['osm'].get('node', [])),
