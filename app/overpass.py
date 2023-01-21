@@ -150,6 +150,7 @@ class Overpass:
             if isinstance(result, dict):
                 return result
 
+            print(f'[2/{steps}] Retrying …')
             errors.append(result)
 
         # all errors are the same
