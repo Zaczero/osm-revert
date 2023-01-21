@@ -1,6 +1,6 @@
 import os
 
-VERSION = '1.0'
+VERSION = '1.1'
 
 if version_suffix := os.getenv('OSM_REVERT_VERSION_SUFFIX'):
     VERSION += f'-{version_suffix}'

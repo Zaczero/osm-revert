@@ -118,6 +118,13 @@ class OsmApi:
 
         return int(caps['osm']['api']['changesets']['@maximum_elements'])
 
+    # def get_element(self, element_type: str, element_id: str, version: str | int) -> dict:
+    #     with get_http_client() as c:
+    #         resp = c.get(f'{self.base_url}/{element_type}/{element_id}/{version}')
+    #         resp.raise_for_status()
+    #
+    #     return xmltodict.parse(resp.text)['osm'][element_type]
+
     def get_authorized_user(self) -> dict:
         with get_http_client(auth=self.auth) as c:
             resp = c.get(f'{self.base_url}/user/details.json')

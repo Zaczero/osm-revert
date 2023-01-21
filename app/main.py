@@ -1,7 +1,6 @@
 import os
 import time
 import traceback
-from itertools import chain
 from typing import Iterable
 
 import fire
@@ -103,18 +102,12 @@ def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
          oauth_token: str = None, oauth_token_secret: str = None,
          osc_file: str = None, print_osc: bool = None,
-         element_ids: list | str | int = None) -> int:
+         query_filter: str = '') -> int:
     changeset_ids = list(sorted(set(
         str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids) if changeset_id
     )))
     assert changeset_ids, 'Missing changeset id'
     assert all(c.isnumeric() for c in changeset_ids), 'Changeset ids must be numeric'
-
-    if isinstance(element_ids, str) and ',' in element_ids:
-        element_ids = element_ids.split(',')
-
-    element_ids = [str(element_id).strip() for element_id in ensure_iterable(element_ids) if element_id]
-    elements_filter = build_element_ids_dict(element_ids) if element_ids else None
 
     if not username and not password:
         username = os.getenv('OSM_USERNAME')
@@ -152,62 +145,38 @@ def main(changeset_ids: list | str | int, comment: str,
         changeset_id = int(changeset_id)
         print(f'☁️ Downloading changeset {changeset_id}')
 
-        print(f'[1/2] OpenStreetMap …')
+        print(f'[1/?] OpenStreetMap …')
         changeset = osm.get_changeset(changeset_id)
-        changeset_partition_size = len(changeset['partition'])
+        changeset_size = sum(len(v) for p in changeset['partition'].values() for v in p.values())
+        partition_count = len(changeset['partition'])
+        steps = partition_count + 1
 
-        if changeset_partition_size > 5:
-            print(f'[2/2] Overpass ({changeset_partition_size} partitions, this may take a while) …')
-        elif changeset_partition_size > 1:
-            print(f'[2/2] Overpass ({changeset_partition_size} partitions) …')
-        else:
-            print(f'[2/2] Overpass …')
+        print(f'[1/{steps}] OpenStreetMap: {changeset_size} element{"s" if changeset_size > 1 else ""}')
 
-        diff = overpass.get_changeset_elements_history(changeset)
+        if changeset_size:
+            if partition_count > 2:
+                print(f'[2/{steps}] Overpass ({partition_count} partitions, this may take a while) …')
+            else:
+                print(f'[2/{steps}] Overpass ({partition_count} partition{"s" if partition_count > 1 else ""}) …')
 
-        if not diff:
-            return -1
+            diff = overpass.get_changeset_elements_history(changeset, steps, query_filter)
 
-        diffs.append(diff)
+            if not diff:
+                return -1
+
+            diffs.append(diff)
+            diff_size = sum(len(el) for el in diff.values())
+
+            assert diff_size <= changeset_size, \
+                f'Diff must not be larger than changeset size: {diff_size=}, {changeset_size=}'
+
+            if query_filter:
+                print(f'[{steps}/{steps}] Overpass: {diff_size} element{"s" if diff_size > 1 else ""} (🪣 filtered)')
+            else:
+                print(f'[{steps}/{steps}] Overpass: {diff_size} element{"s" if diff_size > 1 else ""}')
 
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
-
-    if elements_filter is not None:
-        implicit = 0
-
-        for filter_kind in ('include', 'exclude'):
-            filters = elements_filter[filter_kind]
-
-            # skip if no filters
-            if not any(v for v in filters.values()):
-                continue
-
-            for element_type in ('relation', 'way', 'node'):
-                new_merged_diffs = []
-
-                for t in merged_diffs[element_type]:
-                    t_in_filters = t[1] in filters[element_type]
-
-                    # implicit filters
-                    if t_in_filters and element_type == 'way':
-                        t2_nodes = ensure_iterable(t[2].get('nd', [])) if t[2] else []
-                        t3_nodes = ensure_iterable(t[3].get('nd', [])) if t[3] else []
-
-                        new_filter = filters['node'].union(chain(
-                            n['@ref']
-                            for n in (t2_nodes + t3_nodes)
-                        ))
-
-                        implicit += len(new_filter) - len(filters['node'])
-                        filters['node'] = new_filter
-
-                    if (filter_kind == 'include' and t_in_filters) or (filter_kind == 'exclude' and not t_in_filters):
-                        new_merged_diffs.append(t)
-
-                merged_diffs[element_type] = new_merged_diffs
-
-        print(f'🪣 Filtering enabled: {len(element_ids)} explicit{f" + {implicit} implicit" if implicit > 1 else ""}')
 
     invert, statistics = invert_diff(merged_diffs)
     parents = overpass.update_parents(invert)
