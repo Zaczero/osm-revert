@@ -28,6 +28,10 @@ def get_old_date(timestamp: str) -> str:
     return f'[date:"{created_at_minus_one}"]'
 
 
+def get_new_date(timestamp: str) -> str:
+    return f'[date:"{timestamp}"]'
+
+
 def get_changeset_adiff(timestamp: str) -> str:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
     created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
@@ -107,10 +111,10 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
            f'out meta;'
 
 
-def fetch_overpass(client: Session, post_url: str, data: str) -> dict | str:
+def fetch_overpass(client: Session, post_url: str, data: str, *, check_bad_request: bool = False) -> dict | str:
     response = client.post(post_url, data={'data': data}, timeout=300)
 
-    if response.status_code == 400:
+    if check_bad_request and response.status_code == 400:
         s = response.text.find('<body>')
         e = response.text.find('</body>')
 
@@ -221,38 +225,45 @@ class Overpass:
             for i, (timestamp, element_ids) in enumerate(sorted(changeset['partition'].items(), key=lambda t: t[0])):
                 partition_adiff = get_changeset_adiff(timestamp)
                 current_adiff = get_current_adiff(timestamp)
-                query_filtered = build_query_filtered(element_ids, query_filter)
+                query_unfiltered = build_query_filtered(element_ids, '')
 
-                partition_query = f'[timeout:180]{bbox}{partition_adiff};{query_filtered}'
+                partition_query = f'[timeout:180]{bbox}{partition_adiff};{query_unfiltered}'
                 partition_diff = fetch_overpass(c, base_url + '/interpreter', partition_query)
-
-                if isinstance(partition_diff, str):
-                    return partition_diff
-
+                assert isinstance(partition_diff, dict)
                 partition_action = ensure_iterable(partition_diff['osm'].get('action', []))
 
                 if parse_timestamp(partition_diff['osm']['meta']['@osm_base']) <= parse_timestamp(timestamp):
                     return '🕒️ Overpass is updating, please try again shortly'
 
+                partition_size = len(partition_action)
+                query_size = sum(len(v) for v in element_ids.values())
+
+                if partition_size != query_size:
+                    return f'❓️ Overpass data is incomplete: {partition_size} != {query_size}'
+
                 if query_filter:
-                    old_date = get_old_date(timestamp)
-                    query_unfiltered = build_query_filtered(element_ids, '')
+                    query_filtered = build_query_filtered(element_ids, query_filter)
 
-                    old_query = f'[timeout:180]{bbox}{old_date};{query_unfiltered}'
-                    old_data = fetch_overpass(c, base_url + '/interpreter', old_query)
+                    filtered_query = f'[timeout:180]{bbox}{partition_adiff};{query_filtered}'
+                    filtered_diff = fetch_overpass(c, base_url + '/interpreter', filtered_query, check_bad_request=True)
 
-                    if isinstance(old_data, str):
-                        return old_data
+                    if isinstance(filtered_diff, str):
+                        return filtered_diff
 
-                    old = {
-                        'node': {e['@id']: e for e in ensure_iterable(old_data['osm'].get('node', []))},
-                        'way': {e['@id']: e for e in ensure_iterable(old_data['osm'].get('way', []))},
-                        'relation': {e['@id']: e for e in ensure_iterable(old_data['osm'].get('relation', []))}
-                    }
+                    filtered_action = ensure_iterable(filtered_diff['osm'].get('action', []))
 
                     dedup_node_ids = set()
+                    data_map = {
+                        'node': {},
+                        'way': {},
+                        'relation': {}
+                    }
 
-                    for action in partition_action:
+                    for a in partition_action:
+                        t, o, n = parse_action(a)
+                        data_map[t][n['@id']] = (o, n)
+
+                    for action in filtered_action:
                         element_type, element_old, element_new = parse_action(action)
 
                         # cleanup extra nodes
@@ -267,34 +278,23 @@ class Overpass:
 
                             dedup_node_ids.add(element_new['@id'])
 
-                        # merge old data
-                        if element_old:
-                            if element_new['@id'] not in old[element_type]:
-                                return f'❓️ Overpass data is incomplete (missing_old)'
+                        # merge data
+                        old_new_t = data_map[element_type].get(element_new['@id'], None)
 
-                            element_old = old[element_type][element_new['@id']]
+                        if old_new_t is None:
+                            return f'❓️ Overpass data is incomplete (missing_merge)'
 
-                        elif element_new['@version'] != '1' and element_new['@id'] in old[element_type]:
-                            # TODO: ensure data integrity with OSM (visible=false; not in case)
-                            element_old = old[element_type][element_new['@id']]
+                        if old_new_t[1]['@version'] != element_new['@version']:
+                            return f'❓️ Overpass data is incomplete (bad_merge_version)'
 
-                        changeset_edits.append((element_type, element_old, element_new))
+                        changeset_edits.append((element_type,) + old_new_t)
 
                 else:
-                    partition_size = len(partition_action)
-                    query_size = sum(len(v) for v in element_ids.values())
-
-                    if partition_size != query_size:
-                        return f'❓️ Overpass data is incomplete: {partition_size} != {query_size}'
-
                     changeset_edits.extend(parse_action(a) for a in partition_action)
 
-                current_query = f'[timeout:180]{bbox}{current_adiff};{query_filtered}'
+                current_query = f'[timeout:180]{bbox}{current_adiff};{query_unfiltered}'
                 current_diff = fetch_overpass(c, base_url + '/interpreter', current_query)
-
-                if isinstance(current_diff, str):
-                    return current_diff
-
+                assert isinstance(current_diff, dict)
                 current_partition_action = ensure_iterable(current_diff['osm'].get('action', []))
                 current_action.extend(current_partition_action)
 
@@ -366,7 +366,7 @@ class Overpass:
         with get_http_client() as c:
             parents_query = f'[timeout:180];{query_by_ids}'
             data = fetch_overpass(c, base_url + '/interpreter', parents_query)
-            assert not isinstance(data, str), data
+            assert isinstance(data, dict)
 
         parents = {
             'node': ensure_iterable(data['osm'].get('node', [])),
