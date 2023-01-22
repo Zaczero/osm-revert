@@ -20,8 +20,9 @@
         </label><br>
 
         <label>
-            Elements filter (optional, n=node, w=way, r=relation):<br>
-            <textarea id="elements" cols="60" rows="2" placeholder="n10427025322, w941753265, r569995171, …" spellcheck="false">{{ request.query_params.get('elements', '') }}</textarea>
+            <a href="https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL" target="_blank">Overpass QL</a> filter (optional):<br>
+            <i>Includes elements that match either old or new, or both.</i><br>
+            <textarea id="query-filter" cols="60" rows="2" placeholder="node[ford=yes]; way[!highway]; rel(id:7532,99517)" spellcheck="false">{{ request.query_params.get('query-filter', '') }}</textarea>
         </label><br>
 
         <label>
@@ -45,7 +46,7 @@
     <script>
         const form = document.getElementById('form')
         const changesets = document.getElementById('changesets')
-        const elements = document.getElementById('elements')
+        const query_filter = document.getElementById('query-filter')
         const comment = document.getElementById('comment')
         const submit = document.getElementById('submit')
         const submit_osc = document.getElementById('submit-osc')
@@ -54,6 +55,7 @@
 
         let isAutoScrolling = true
         let isReverting = true
+        let clearFields = false
 
         let wsDownloadingOsc = false
         let wsOsc = []
@@ -106,7 +108,7 @@
             }
 
             if (obj.last === true) {
-                if (obj.message === "Exit code: 0") {
+                if (clearFields && obj.message === "Exit code: 0") {
                     changesets.value = ''
                 }
 
@@ -122,38 +124,32 @@
             log.value = `⚠️ Disconnected: ${e.reason}\n⚠️ Please reload the page`
         }
 
-        submit.addEventListener('click', e => {
-            e.preventDefault()
-
+        const beginRevert = upload => {
             if (isReverting)
                 return
 
             setIsReverting(true)
+            clearFields = upload
             log.value = ''
 
             ws.send(JSON.stringify({
                 changesets: changesets.value,
-                elements: elements.value,
+                query_filter: query_filter.value,
                 comment: comment.value,
-                upload: true
+                upload: upload
             }))
+        }
+
+        submit.addEventListener('click', e => {
+            e.preventDefault()
+
+            beginRevert(true)
         })
 
         submit_osc.addEventListener('click', e => {
             e.preventDefault()
 
-            if (isReverting)
-                return
-
-            setIsReverting(true)
-            log.value = ''
-
-            ws.send(JSON.stringify({
-                changesets: changesets.value,
-                elements: elements.value,
-                comment: comment.value,
-                upload: false
-            }))
+            beginRevert(false)
         })
 
         log.addEventListener('scroll', () => {

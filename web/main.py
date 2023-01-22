@@ -135,13 +135,12 @@ async def websocket(ws: WebSocket):
 
 
 async def main(ws: WebSocket, args: dict) -> str:
-    for required_arg in ('changesets', 'elements', 'comment', 'upload'):
+    for required_arg in ('changesets', 'query_filter', 'comment', 'upload'):
         assert required_arg in args, f'Missing argument: {required_arg}'
 
     changesets = re.split(r'(;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
-    elements = re.split(r'(;|,|\s)+', args['elements'])
-    elements = [e.strip() for e in elements if e.strip()]
+    query_filter = args['query_filter'].strip()
     comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
     upload = args['upload']
 
@@ -175,7 +174,7 @@ async def main(ws: WebSocket, args: dict) -> str:
         '--env', f'CONSUMER_SECRET={consumer_secret}',
         'zaczero/osm-revert',
         '--changeset_ids', ','.join(changesets),
-        '--element_ids', ','.join(elements),
+        '--query_filter', query_filter,
         '--comment', comment,
         '--oauth_token', token['oauth_token'],
         '--oauth_token_secret', token['oauth_token_secret'],
