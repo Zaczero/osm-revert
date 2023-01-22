@@ -408,6 +408,7 @@ class Overpass:
                         if m['@ref'] not in deleting_ids[m['@type']]
                     ]
 
+                    # TODO: this could be optimized, include id in deleting ids and recurse
                     if not element['member']:
                         element['@visible'] = 'false'
                 else:

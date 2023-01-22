@@ -70,6 +70,7 @@ def invert_diff(diff: dict) -> (dict, dict):
                     print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
                     statistics[f'fix:{element_type}'] += 1
 
+                    # TODO: more intuitive deep copy at the very beginning
                     current['tag'] = ensure_iterable(current.get('tag', []))
                     current_original = deepcopy(current)
 
