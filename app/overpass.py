@@ -1,5 +1,6 @@
 import html
 import re
+from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -43,6 +44,7 @@ def get_current_adiff(timestamp: str) -> str:
     return f'[adiff:"{timestamp}"]'
 
 
+# TODO: custom (!id:123123)
 def build_query_filtered(element_ids: dict, query_filter: str) -> str:
     joined_element_ids = {
         'node': ','.join(element_ids['node']) if element_ids['node'] else '-1',
@@ -345,10 +347,10 @@ class Overpass:
     def update_parents(self, invert: dict) -> int:
         base_url = self.base_urls[0]
 
-        invert_ids = {
-            'node': {e['@id'] for e in invert['node']},
-            'way': {e['@id'] for e in invert['way']},
-            'relation': {e['@id'] for e in invert['relation']}
+        invert_map = {
+            'node': {e['@id']: e for e in invert['node']},
+            'way': {e['@id']: e for e in invert['way']},
+            'relation': {e['@id']: e for e in invert['relation']}
         }
 
         deleting_ids = {
@@ -380,7 +382,12 @@ class Overpass:
             for element in elements:
                 assert isinstance(element, dict)
 
-                if element['@id'] in invert_ids[element_type]:
+                # use current element if present
+                element_orig = invert_map[element_type].get(element['@id'], element)
+                element = deepcopy(element_orig)
+
+                # TODO: ensure default element tags
+                if element.get('@visible', 'true') == 'false':
                     continue
 
                 if element_type == 'way':
@@ -406,8 +413,17 @@ class Overpass:
                 else:
                     raise
 
+                if element == element_orig:
+                    continue
+
                 ensure_visible_tag(element)
-                invert[element_type].append(element)
+
+                if element['@id'] in invert_map[element_type]:
+                    idx = next(i for i, v in enumerate(invert[element_type]) if v['@id'] == element['@id'])
+                    invert[element_type][idx] = element
+                else:
+                    invert[element_type].append(element)
+
                 fixed_parents += 1
 
         return fixed_parents
