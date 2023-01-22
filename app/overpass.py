@@ -357,7 +357,7 @@ class Overpass:
         with get_http_client() as c:
             parents_query = f'[timeout:180];{query_by_ids}'
             data = fetch_overpass(c, base_url + '/interpreter', parents_query)
-            assert isinstance(data, str), data
+            assert not isinstance(data, str), data
 
         parents = {
             'node': ensure_iterable(data['osm'].get('node', [])),
