@@ -14,6 +14,13 @@ def parse_timestamp(timestamp: str) -> int:
     return int(datetime.strptime(timestamp, date_format).timestamp())
 
 
+def get_bbox(changeset: dict) -> str:
+    e = changeset['osm']['changeset']
+    min_lat, max_lat = e['@min_lat'], e['@max_lat']
+    min_lon, max_lon = e['@min_lon'], e['@max_lon']
+    return f'[bbox:{min_lat},{min_lon},{max_lat},{max_lon}]'
+
+
 def get_old_date(timestamp: str) -> str:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
     created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
@@ -205,6 +212,7 @@ class Overpass:
         # shlink = Shlink()
         shlink_available = False  # shlink.available
 
+        bbox = get_bbox(changeset)
         changeset_id = changeset['osm']['changeset']['@id']
         changeset_edits = []
         current_action = []
@@ -215,7 +223,7 @@ class Overpass:
                 current_adiff = get_current_adiff(timestamp)
                 query_filtered = build_query_filtered(element_ids, query_filter)
 
-                partition_query = f'[timeout:180]{partition_adiff};{query_filtered}'
+                partition_query = f'[timeout:180]{bbox}{partition_adiff};{query_filtered}'
                 partition_diff = fetch_overpass(c, base_url + '/interpreter', partition_query)
 
                 if isinstance(partition_diff, str):
@@ -230,7 +238,7 @@ class Overpass:
                     old_date = get_old_date(timestamp)
                     query_unfiltered = build_query_filtered(element_ids, '')
 
-                    old_query = f'[timeout:180]{old_date};{query_unfiltered}'
+                    old_query = f'[timeout:180]{bbox}{old_date};{query_unfiltered}'
                     old_data = fetch_overpass(c, base_url + '/interpreter', old_query)
 
                     if isinstance(old_data, str):
@@ -281,7 +289,7 @@ class Overpass:
 
                     changeset_edits.extend(parse_action(a) for a in partition_action)
 
-                current_query = f'[timeout:180]{current_adiff};{query_filtered}'
+                current_query = f'[timeout:180]{bbox}{current_adiff};{query_filtered}'
                 current_diff = fetch_overpass(c, base_url + '/interpreter', current_query)
 
                 if isinstance(current_diff, str):
@@ -352,6 +360,7 @@ class Overpass:
         if sum(len(el) for el in deleting_ids.values()) == 0:
             return 0
 
+        # TODO: optimize bbox by merging previous bboxes
         query_by_ids = build_query_parents_by_ids(deleting_ids)
 
         with get_http_client() as c:
