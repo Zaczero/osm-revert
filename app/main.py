@@ -227,6 +227,9 @@ def main(changeset_ids: list | str | int, comment: str,
             'id': ';'.join(changeset_ids)
         }
 
+        if query_filter:
+            extra_rags['filter'] = query_filter
+
         if changeset_id := osm.upload_diff(invert, comment, extra_rags | statistics):
             print(f'✅ Success')
             print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
