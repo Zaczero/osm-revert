@@ -221,16 +221,19 @@ def main(changeset_ids: list | str | int, comment: str,
     else:
         print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
 
-        extra_rags = {
+        if len(changeset_ids) == 1:
+            changeset_ids = [f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids]
+
+        extra_args = {
             'created_by': CREATED_BY,
             'website': WEBSITE,
             'id': ';'.join(changeset_ids)
         }
 
         if query_filter:
-            extra_rags['filter'] = query_filter
+            extra_args['filter'] = query_filter
 
-        if changeset_id := osm.upload_diff(invert, comment, extra_rags | statistics):
+        if changeset_id := osm.upload_diff(invert, comment, extra_args | statistics):
             print(f'✅ Success')
             print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
             return 0
