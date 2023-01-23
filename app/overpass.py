@@ -44,7 +44,6 @@ def get_current_adiff(timestamp: str) -> str:
     return f'[adiff:"{timestamp}"]'
 
 
-# TODO: custom (!id:123123)
 def build_query_filtered(element_ids: dict, query_filter: str) -> str:
     joined_element_ids = {
         'node': ','.join(element_ids['node']) if element_ids['node'] else '-1',
@@ -62,8 +61,16 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
     if not query_filter.endswith(';'):
         query_filter += ';'
 
+    # replace 'rel' alias with 'relation'
+    for match in sorted(re.finditer(r'\brel\b', query_filter),
+                        key=lambda m: m.start(),
+                        reverse=True):
+        start, end = match.start(), match.end()
+
+        query_filter = query_filter[:start] + 'relation' + query_filter[end:]
+
     # expand nwr/nw/nr/wr
-    for match in sorted(re.finditer(r'\b(?P<group>nwr|nw|nr|wr)\b(?P<expand>.*?;)', query_filter),
+    for match in sorted(re.finditer(r'\b(?P<group>nwr|nw|nr|wr)\b(?P<expand>.*?;)', query_filter, re.DOTALL),
                         key=lambda m: m.start(),
                         reverse=True):
         start, end = match.start(), match.end()
@@ -73,25 +80,30 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
 
         if 'n' in group:
             expanded += f'node{expand}'
-
         if 'w' in group:
             expanded += f'way{expand}'
-
         if 'r' in group:
             expanded += f'relation{expand}'
 
         query_filter = query_filter[:start] + expanded + query_filter[end:]
 
+    # handle custom (!id:)
+    for match in sorted(re.finditer(r'\(\s*!\s*id\s*:(?P<id>(\s*(,\s*)?\d+)+)\s*\)', query_filter),
+                        key=lambda m: m.start(),
+                        reverse=True):
+        start, end = match.start(), match.end()
+        ids = (i.strip() for i in match.group('id').split(',') if i.strip())
+        element_type = re.match(r'.*\b(node|way|relation)\b', query_filter[:start], re.DOTALL).group(1)
+        new_ids = set(element_ids[element_type]).difference(ids)
+
+        query_filter = query_filter[:start] + f'(id:{",".join(new_ids)})' + query_filter[end:]
+
     # apply element id filtering
-    for match in sorted(re.finditer(r'\b(node|way|rel(ation)?)\b', query_filter),
+    for match in sorted(re.finditer(r'\b(node|way|relation)\b', query_filter),
                         key=lambda m: m.start(),
                         reverse=True):
         end = match.end()
         element_type = match.group(1)
-
-        # handle 'rel' alias
-        if element_type == 'rel':
-            element_type = 'relation'
 
         query_filter = query_filter[:end] + f'(id:{joined_element_ids[element_type]})' + query_filter[end:]
 
@@ -122,7 +134,7 @@ def fetch_overpass(client: Session, post_url: str, data: str, *, check_bad_reque
 
         if e > s > -1:
             body = response.text[s + 6:e].strip()
-            body = re.sub(r'<.*?>', '', body)
+            body = re.sub(r'<.*?>', '', body, re.DOTALL)
             lines = [html.unescape(line.strip()[7:])
                      for line in body.split('\n')
                      if line.strip().startswith('Error: ')]

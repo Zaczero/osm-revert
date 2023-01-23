@@ -2,7 +2,6 @@ import json
 from copy import deepcopy
 from typing import Optional
 
-from config import TAG_PREFIX
 from utils import ensure_iterable, dmp_retry_reverse
 
 
