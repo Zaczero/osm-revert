@@ -46,7 +46,10 @@ def invert_diff(diff: dict) -> (dict, dict):
             if element_id not in version_map[element_type]:
                 version_map[element_type][element_id] = current['@version']
 
-            current = current_map[element_type].get(element_id, current)
+            last_current = current_map[element_type].get(element_id, None)
+
+            if last_current is not None:
+                current = deepcopy(last_current)
 
             set_visible_original(old, current)
             set_visible_original(new, current)
@@ -57,19 +60,18 @@ def invert_diff(diff: dict) -> (dict, dict):
                 # absolute delete
                 if current['@visible'] == 'true':
                     current['@visible'] = 'false'
-                    current_map[element_type][element_id] = deepcopy(current)
+                    current_map[element_type][element_id] = current
 
             # modify
             elif old['@visible'] == 'true' and new['@visible'] == 'true':
                 # simple revert
                 if current['@version'] == new['@version']:
-                    current_map[element_type][element_id] = deepcopy(old)
+                    current_map[element_type][element_id] = old
                 # advanced revert (element currently is not deleted)
                 elif current['@visible'] == 'true':
                     print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
                     statistics[f'fix:{element_type}'] += 1
 
-                    # TODO: more intuitive deep copy at the very beginning
                     current['tag'] = ensure_iterable(current.get('tag', []))
                     current_original = deepcopy(current)
 
@@ -85,13 +87,13 @@ def invert_diff(diff: dict) -> (dict, dict):
                         raise
 
                     if current != current_original:
-                        current_map[element_type][element_id] = deepcopy(current)
+                        current_map[element_type][element_id] = current
 
             # delete
             elif old['@visible'] == 'true' and new['@visible'] == 'false':
                 # do not restore repeatedly deleted elements
                 if current['@version'] == new['@version']:
-                    current_map[element_type][element_id] = deepcopy(old)
+                    current_map[element_type][element_id] = old
 
             else:
                 raise
