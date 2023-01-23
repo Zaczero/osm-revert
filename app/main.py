@@ -225,6 +225,7 @@ def main(changeset_ids: list | str | int, comment: str,
             changeset_ids = [f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids]
 
         extra_args = {
+            'changesets_count': user_edits + 1,
             'created_by': CREATED_BY,
             'website': WEBSITE,
             'id': ';'.join(changeset_ids)

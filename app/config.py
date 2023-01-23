@@ -24,4 +24,4 @@ CHANGESETS_LIMIT_CONFIG = {
 TAG_MAX_LENGTH = 255
 TAG_PREFIX = 'revert'
 
-NO_TAG_PREFIX = {'comment', 'created_by', 'website'}
+NO_TAG_PREFIX = {'comment', 'changesets_count', 'created_by', 'website'}
