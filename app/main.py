@@ -94,6 +94,11 @@ def main_timer(func):
     return wrapper
 
 
+# TODO: filter does not include nodes if way was unmodified
+# https://overpass-api.de/achavi/?changeset=131696060
+# https://www.openstreetmap.org/way/357241890/history
+
+# TODO: Exit code: None ? (after success and total time)
 # TODO: util function to ensure tags existence and type
 # TODO: slow but very accurate revert (download full history of future edits); overpass-api: timeline
 # TODO: dataclasses

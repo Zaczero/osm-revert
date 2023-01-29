@@ -2,6 +2,7 @@ import html
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta
+from itertools import chain
 from typing import Optional
 
 import xmltodict
@@ -44,14 +45,31 @@ def get_current_adiff(timestamp: str) -> str:
     return f'[adiff:"{timestamp}"]'
 
 
-def build_query_filtered(element_ids: dict, query_filter: str) -> str:
-    joined_element_ids = {
-        'node': ','.join(element_ids['node']) if element_ids['node'] else '-1',
-        'way': ','.join(element_ids['way']) if element_ids['way'] else '-1',
-        'relation': ','.join(element_ids['relation']) if element_ids['relation'] else '-1'
-    }
+def get_element_types_from_selector(selector: str) -> list[str]:
+    if selector in {'node', 'way', 'relation'}:
+        return [selector]
 
-    implicit_way_nodes = bool(query_filter)
+    result = []
+
+    if 'n' in selector:
+        result.append('node')
+    if 'w' in selector:
+        result.append('way')
+    if 'r' in selector:
+        result.append('relation')
+
+    return result
+
+
+def build_query_filtered(element_ids: dict, query_filter: str) -> str:
+    element_ids = deepcopy(element_ids)
+
+    # ensure valid query if no ids are present
+    for invert_ids in element_ids.values():
+        if not invert_ids:
+            invert_ids.append('-1')
+
+    implicit_query_way_children = bool(query_filter)
 
     # default everything query filter
     if not query_filter:
@@ -69,45 +87,39 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
 
         query_filter = query_filter[:start] + 'relation' + query_filter[end:]
 
-    # expand nwr/nw/nr/wr
-    for match in sorted(re.finditer(r'\b(?P<group>nwr|nw|nr|wr)\b(?P<expand>.*?;)', query_filter, re.DOTALL),
-                        key=lambda m: m.start(),
-                        reverse=True):
-        start, end = match.start(), match.end()
-        group = match.group('group')
-        expand = match.group('expand')
-        expanded = ''
-
-        if 'n' in group:
-            expanded += f'node{expand}'
-        if 'w' in group:
-            expanded += f'way{expand}'
-        if 'r' in group:
-            expanded += f'relation{expand}'
-
-        query_filter = query_filter[:start] + expanded + query_filter[end:]
-
     # handle custom (!id:)
     for match in sorted(re.finditer(r'\(\s*!\s*id\s*:(?P<id>(\s*(,\s*)?\d+)+)\s*\)', query_filter),
                         key=lambda m: m.start(),
                         reverse=True):
         start, end = match.start(), match.end()
-        ids = (i.strip() for i in match.group('id').split(',') if i.strip())
-        element_type = re.match(r'.*\b(node|way|relation)\b', query_filter[:start], re.DOTALL).group(1)
-        new_ids = set(element_ids[element_type]).difference(ids)
+        invert_ids = (i.strip() for i in match.group('id').split(',') if i.strip())
+        selector = re.match(r'.*\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter[:start], re.DOTALL).group(1)
 
-        query_filter = query_filter[:start] + f'(id:{",".join(new_ids)})' + query_filter[end:]
+        joined_new_ids = ','.join(
+            set(chain.from_iterable(
+                element_ids[et]
+                for et in get_element_types_from_selector(selector)))
+            .difference(invert_ids)
+        )
+
+        query_filter = query_filter[:start] + f'(id:{joined_new_ids})' + query_filter[end:]
 
     # apply element id filtering
-    for match in sorted(re.finditer(r'\b(node|way|relation)\b', query_filter),
+    for match in sorted(re.finditer(r'\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter),
                         key=lambda m: m.start(),
                         reverse=True):
         end = match.end()
-        element_type = match.group(1)
+        selector = match.group(1)
 
-        query_filter = query_filter[:end] + f'(id:{joined_element_ids[element_type]})' + query_filter[end:]
+        joined_element_ids = ','.join(
+            set(chain.from_iterable(
+                element_ids[et]
+                for et in get_element_types_from_selector(selector)))
+        )
 
-    if implicit_way_nodes:
+        query_filter = query_filter[:end] + f'(id:{joined_element_ids})' + query_filter[end:]
+
+    if implicit_query_way_children:
         return f'({query_filter});' \
                f'out meta;' \
                f'node(w._);' \
