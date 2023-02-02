@@ -77,6 +77,12 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
     return result
 
 
+def print_warn_elements(warn_elements: dict[str, list[str]]) -> None:
+    for element_type, element_ids in warn_elements.items():
+        for element_id in element_ids:
+            print(f'⚠️ Please verify: https://www.openstreetmap.org/{element_type}/{element_id}')
+
+
 def main_timer(func):
     def wrapper(*args, **kwargs):
         start_time = time.perf_counter()
@@ -183,7 +189,7 @@ def main(changeset_ids: list | str | int, comment: str,
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
 
-    invert, statistics = invert_diff(merged_diffs)
+    invert, statistics, warn_elements = invert_diff(merged_diffs)
     parents = overpass.update_parents(invert)
 
     if parents:
@@ -240,6 +246,7 @@ def main(changeset_ids: list | str | int, comment: str,
             extra_args['filter'] = query_filter
 
         if changeset_id := osm.upload_diff(invert, comment, extra_args | statistics):
+            print_warn_elements(warn_elements)
             print(f'✅ Success')
             print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
             return 0

@@ -10,7 +10,7 @@ def set_visible_original(target: Optional[dict], current: dict):
         target['@visible:original'] = current['@visible']
 
 
-def invert_diff(diff: dict) -> (dict, dict):
+def invert_diff(diff: dict) -> (dict, dict, dict[str, list[str]]):
     # we need this to make reverting multiple changesets at a time possible
     current_map = {
         'node': {},
@@ -39,6 +39,12 @@ def invert_diff(diff: dict) -> (dict, dict):
         'dmp:fail:way:id': [],
         'dmp:fail:relation': 0,
         'dmp:fail:relation:id': [],
+    }
+
+    warn_elements = {
+        'node': [],
+        'way': [],
+        'relation': []
     }
 
     for element_type, elements in diff.items():
@@ -80,9 +86,9 @@ def invert_diff(diff: dict) -> (dict, dict):
                     if element_type == 'node':
                         invert_node_position(old, new, current)
                     elif element_type == 'way':
-                        invert_way_nodes(old, new, current, statistics)
+                        invert_way_nodes(old, new, current, statistics, warn_elements)
                     elif element_type == 'relation':
-                        invert_relation_members(old, new, current, statistics)
+                        invert_relation_members(old, new, current, statistics, warn_elements)
                     else:
                         raise
 
@@ -114,7 +120,7 @@ def invert_diff(diff: dict) -> (dict, dict):
         if value and isinstance(value, list):
             statistics[key] = ';'.join(value)
 
-    return result, statistics
+    return result, statistics, warn_elements
 
 
 def invert_tags(old: dict, new: dict, current: dict) -> None:
@@ -201,7 +207,8 @@ def invert_node_position(old: dict, new: dict, current: dict) -> None:
     current['@lon'] = old['@lon']
 
 
-def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict) -> None:
+def invert_way_nodes(old: dict, new: dict, current: dict,
+                     statistics: dict, warn_elements: dict[str, list[str]]) -> None:
     old_nodes = [json.dumps(n) for n in ensure_iterable(old.get('nd', []))]
     new_nodes = [json.dumps(n) for n in ensure_iterable(new.get('nd', []))]
     current_nodes = [json.dumps(n) for n in ensure_iterable(current.get('nd', []))]
@@ -234,9 +241,11 @@ def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict) -> N
 
         statistics['dmp:fail:way'] += 1
         statistics['dmp:fail:way:id'].append(new['@id'])
+        warn_elements['way'].append(new['@id'])
 
 
-def invert_relation_members(old: dict, new: dict, current: dict, statistics: dict) -> None:
+def invert_relation_members(old: dict, new: dict, current: dict,
+                            statistics: dict, warn_elements: dict[str, list[str]]) -> None:
     old_members = [json.dumps(m) for m in ensure_iterable(old.get('member', []))]
     new_members = [json.dumps(m) for m in ensure_iterable(new.get('member', []))]
     current_members = [json.dumps(m) for m in ensure_iterable(current.get('member', []))]
@@ -269,3 +278,4 @@ def invert_relation_members(old: dict, new: dict, current: dict, statistics: dic
 
         statistics['dmp:fail:relation'] += 1
         statistics['dmp:fail:relation:id'].append(new['@id'])
+        warn_elements['relation'].append(new['@id'])
