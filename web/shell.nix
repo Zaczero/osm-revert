@@ -4,6 +4,7 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     python311
     pipenv
+    docker
   ];
 
   shellHook = ''
