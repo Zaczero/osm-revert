@@ -1,5 +1,5 @@
-# Created by https://www.toptal.com/developers/gitignore/api/dotenv,pycharm,python
-# Edit at https://www.toptal.com/developers/gitignore?templates=dotenv,pycharm,python
+# Created by https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode
+# Edit at https://www.toptal.com/developers/gitignore?templates=dotenv,python,pycharm,visualstudiocode
 
 ### dotenv ###
 .env
@@ -282,5 +282,26 @@ cython_debug/
 # Poetry local configuration file - https://python-poetry.org/docs/configuration/#local-configuration
 poetry.toml
 
+# ruff
+.ruff_cache/
 
-# End of https://www.toptal.com/developers/gitignore/api/dotenv,pycharm,python
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
+
+# End of https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode
