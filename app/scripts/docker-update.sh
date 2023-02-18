@@ -1,4 +1,4 @@
 #!/bin/sh
 
 docker run --privileged --rm tonistiigi/binfmt --install all && \
-docker buildx build --platform linux/arm64,linux/amd64 -t zaczero/osm-revert --no-cache --push .
+docker buildx build --platform linux/amd64 -t zaczero/osm-revert --push .
