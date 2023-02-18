@@ -122,7 +122,7 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
     if implicit_query_way_children:
         return f'({query_filter});' \
                f'out meta;' \
-               f'node(w._);' \
+               f'node(w);' \
                f'out meta;'
     else:
         return f'({query_filter});' \
@@ -178,7 +178,7 @@ def get_current_map(actions: list) -> dict:
 
 
 # TODO: include default actions
-def parse_action(action: dict) -> (str, dict | None, dict):
+def parse_action(action: dict) -> tuple[str, dict | None, dict]:
     if action['@type'] == 'create':
         element_old = None
         element_type, element_new = next((k, v) for k, v in action.items() if not k.startswith('@'))
