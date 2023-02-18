@@ -1,6 +1,6 @@
 # <img height="24" src="https://github.com/Zaczero/osm-revert/blob/main/icon/osm-revert.png?raw=true" alt="🗺️"> osm-revert
 
-![Python version](https://img.shields.io/badge/python-v3.10-blue)
+![Python version](https://img.shields.io/badge/python-v3.11-blue)
 [![GitHub](https://img.shields.io/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
 [![GitHub repo stars](https://img.shields.io/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
 
@@ -35,8 +35,8 @@ This project was inspired by the work of [Zverik](https://github.com/Zverik) and
 
 ### Contact
 
-* Email: [kamil@monicz.pl](mailto:kamil@monicz.pl)
-* LinkedIn: [linkedin.com/in/kamil-monicz](https://www.linkedin.com/in/kamil-monicz/)
+- Email: [kamil@monicz.pl](mailto:kamil@monicz.pl)
+- LinkedIn: [linkedin.com/in/kamil-monicz](https://www.linkedin.com/in/kamil-monicz/)
 
 ### License
 
