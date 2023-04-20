@@ -1,8 +1,8 @@
+import asyncio
 import os
 import re
 from typing import Optional
 
-import asyncio
 from authlib.integrations.starlette_client import OAuth
 from cachetools import TTLCache
 from fastapi import FastAPI, Request
@@ -138,7 +138,7 @@ async def main(ws: WebSocket, args: dict) -> str:
     for required_arg in ('changesets', 'query_filter', 'comment', 'upload'):
         assert required_arg in args, f'Missing argument: {required_arg}'
 
-    changesets = re.split(r'(;|,|\s)+', args['changesets'])
+    changesets = re.split(r'(?:;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
     query_filter = args['query_filter'].strip()
     comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
