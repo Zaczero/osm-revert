@@ -76,7 +76,7 @@ async def index(request: Request):
 
 @app.post('/login')
 async def login(request: Request):
-    return await oauth.osm.authorize_redirect(request, request.url_for('callback'))
+    return await oauth.osm.authorize_redirect(request, str(request.url_for('callback')))
 
 
 @app.get('/callback')
