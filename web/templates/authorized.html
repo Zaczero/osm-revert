@@ -15,7 +15,7 @@
 
     <div>
         <label>
-            Changesets:<br>
+            <span class="required" title="This field is required">Changesets</span>:<br>
             <textarea id="changesets" cols="60" rows="2" placeholder="118034381, 130000000, …" spellcheck="false">{{ request.query_params.get('changesets', '') }}</textarea>
         </label><br>
 
@@ -26,16 +26,27 @@
         </label><br>
 
         <label>
-            Comment:<br>
+            <span class="required" title="This field is required">Comment</span>: <abbr title="The reverting changeset's comment">(?)</abbr><br>
             <textarea id="comment" cols="60" rows="3" placeholder="I revert it because…" maxlength="255"></textarea>
         </label><br>
 
-        <div style="margin-bottom: .2em"></div>
+        <label>
+            Auto-discussion (optional): <abbr title="Discussion on the reverted changesets">(?)</abbr><br>
+            <textarea id="discussion" cols="60" rows="3" placeholder="I reverted this changeset because…" maxlength="2000"></textarea>
+        </label><br>
+
+        <div style="padding-left: 14em; font-size: .9em">
+            <input id="dt-a" type="radio" name="discussion_target" value="all" checked><label for="dt-a">All changesets</label>
+            <input id="dt-n" type="radio" name="discussion_target" value="newest"><label for="dt-n">Newest only</label>
+            <input id="dt-o" type="radio" name="discussion_target" value="oldest"><label for="dt-o">Oldest only</label>
+        </div>
+
+        <div style="margin-bottom: 0.7em"></div>
 
         <input id="submit" type="button" value="Connecting…" style="margin-right: .5em" disabled>
         <input id="submit-osc" type="button" value="Connecting…" disabled>
 
-        <div style="margin-bottom: 1.2em"></div>
+        <div style="margin-bottom: 1.1em"></div>
 
         <label>
             Revert log<br>
@@ -48,6 +59,7 @@
         const changesets = document.getElementById('changesets')
         const query_filter = document.getElementById('query-filter')
         const comment = document.getElementById('comment')
+        const discussion = document.getElementById('discussion')
         const submit = document.getElementById('submit')
         const submit_osc = document.getElementById('submit-osc')
         const log = document.getElementById('log')
@@ -136,7 +148,9 @@
                 changesets: changesets.value,
                 query_filter: query_filter.value,
                 comment: comment.value,
-                upload: upload
+                upload: upload,
+                discussion: discussion.value,
+                discussion_target: document.querySelector('input[name="discussion_target"]:checked').value,
             }))
         }
 

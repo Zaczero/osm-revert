@@ -6,7 +6,7 @@ from typing import Iterable
 import fire
 import xmltodict
 
-from config import CREATED_BY, WEBSITE, CHANGESETS_LIMIT_CONFIG
+from config import CHANGESETS_LIMIT_CONFIG, CREATED_BY, WEBSITE
 from invert import invert_diff
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
@@ -77,6 +77,18 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
     return result
 
 
+def filter_discussion_changesets(changeset_ids: list[str], target: str) -> list[str]:
+    if target == 'all':
+        return changeset_ids
+    if target == 'newest':
+        return changeset_ids[-1:]
+    if target == 'oldest':
+        return changeset_ids[:1]
+
+    print(f'🚧 Warning: Unknown discussion target: {target}')
+    return []
+
+
 def print_warn_elements(warn_elements: dict[str, list[str]]) -> None:
     for element_type, element_ids in warn_elements.items():
         for element_id in element_ids:
@@ -112,6 +124,7 @@ def main_timer(func):
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
          oauth_token: str = None, oauth_token_secret: str = None,
+         discussion: str = None, discussion_target: str = None,
          osc_file: str = None, print_osc: bool = None,
          query_filter: str = '') -> int:
     changeset_ids = list(sorted(set(
@@ -226,29 +239,44 @@ def main(changeset_ids: list | str | int, comment: str,
             print(osm_change_xml)
             print('</osc>')
 
+        print_warn_elements(warn_elements)
         print(f'✅ Success')
         return 0
 
     else:
         print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
 
-        if len(changeset_ids) == 1:
-            changeset_ids = [f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids]
-
         extra_args = {
             'changesets_count': user_edits + 1,
             'created_by': CREATED_BY,
-            'website': WEBSITE,
-            'id': ';'.join(changeset_ids)
+            'website': WEBSITE
         }
+
+        if len(changeset_ids) == 1:
+            extra_args['id'] = ';'.join(f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids)
+        else:
+            extra_args['id'] = ';'.join(changeset_ids)
 
         if query_filter:
             extra_args['filter'] = query_filter
 
         if changeset_id := osm.upload_diff(invert, comment, extra_args | statistics):
+            changeset_url = f'https://www.openstreetmap.org/changeset/{changeset_id}'
+
+            if len(discussion) >= 4:  # prevent accidental discussions
+                discussion += f'\n\n{changeset_url}'
+
+                d_changeset_ids = filter_discussion_changesets(changeset_ids, discussion_target)
+                print(f'💬 Discussing {len(d_changeset_ids)} changeset{"s" if len(d_changeset_ids) > 1 else ""}')
+
+                for i, changeset_id in enumerate(d_changeset_ids, 1):
+                    changeset_id = int(changeset_id)
+                    osm.add_comment_to_changeset(changeset_id, discussion)
+                    print(f'[{i}/{len(d_changeset_ids)}] Changeset {changeset_id}: OK')
+
             print_warn_elements(warn_elements)
             print(f'✅ Success')
-            print(f'✅ https://www.openstreetmap.org/changeset/{changeset_id}')
+            print(f'✅ {changeset_url}')
             return 0
 
     return -1

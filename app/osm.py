@@ -4,7 +4,7 @@ from typing import Optional
 import xmltodict
 from authlib.integrations.requests_client import OAuth1Auth
 
-from config import TAG_MAX_LENGTH, NO_TAG_PREFIX, TAG_PREFIX, CREATED_BY
+from config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX
 from utils import ensure_iterable, get_http_client
 
 
@@ -196,7 +196,7 @@ class OsmApi:
 
             # trim value if too long
             if len(value) > TAG_MAX_LENGTH:
-                print(f'Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
+                print(f'🚧 Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
                 extra_tags[key] = value[:252] + '…'
 
         with get_http_client(auth=self.auth, headers={'Content-Type': 'text/xml; charset=utf-8'}) as c:
@@ -228,3 +228,9 @@ class OsmApi:
             return None
 
         return changeset_id
+
+    def add_comment_to_changeset(self, changeset_id: int, comment: str) -> None:
+        with get_http_client(auth=self.auth) as c:
+            c.post(f'{self.base_url}/changeset/{changeset_id}/comment', data={
+                'text': comment
+            })

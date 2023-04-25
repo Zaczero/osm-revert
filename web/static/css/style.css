@@ -1,0 +1,12 @@
+abbr {
+    color: #777;
+    cursor: help;
+    vertical-align: super;
+    font-size: .8em;
+}
+
+.required::after {
+    content: '*';
+    color: #e00;
+    font-weight: bold;
+}

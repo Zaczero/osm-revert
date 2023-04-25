@@ -135,7 +135,7 @@ async def websocket(ws: WebSocket):
 
 
 async def main(ws: WebSocket, args: dict) -> str:
-    for required_arg in ('changesets', 'query_filter', 'comment', 'upload'):
+    for required_arg in ('changesets', 'query_filter', 'comment', 'upload', 'discussion', 'discussion_target'):
         assert required_arg in args, f'Missing argument: {required_arg}'
 
     changesets = re.split(r'(?:;|,|\s)+', args['changesets'])
@@ -143,6 +143,8 @@ async def main(ws: WebSocket, args: dict) -> str:
     query_filter = args['query_filter'].strip()
     comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
     upload = args['upload']
+    discussion = args['discussion']
+    discussion_target = args['discussion_target']
 
     if not changesets:
         return '❗️ No changesets were provided'
@@ -154,6 +156,8 @@ async def main(ws: WebSocket, args: dict) -> str:
     if upload:
         if not comment:
             return '❗️ No comment was provided for the changes'
+
+    assert discussion_target in {'all', 'newest', 'oldest'}, 'Invalid discussion target'
 
     token = secret.loads(ws.cookies['token'])
     version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
@@ -178,6 +182,8 @@ async def main(ws: WebSocket, args: dict) -> str:
         '--comment', comment,
         '--oauth_token', token['oauth_token'],
         '--oauth_token_secret', token['oauth_token_secret'],
+        '--discussion', discussion,
+        '--discussion_target', discussion_target,
         *extra_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT)
