@@ -263,6 +263,8 @@ def main(changeset_ids: list | str | int, comment: str,
         if changeset_id := osm.upload_diff(invert, comment, extra_args | statistics):
             changeset_url = f'https://www.openstreetmap.org/changeset/{changeset_id}'
 
+            discussion = discussion.strip()
+
             if len(discussion) >= 4:  # prevent accidental discussions
                 discussion += f'\n\n{changeset_url}'
 

@@ -156,7 +156,7 @@ def fetch_overpass(client: Session, post_url: str, data: str, *, check_bad_reque
                     [f'🛑 Overpass - Bad Request:'] +
                     [f'🛑 {line}' for line in lines])
 
-    response.raise_for_status()
+    response.raise_for_status()  # TODO: return error message instead raise
     return xmltodict.parse(response.text)
 
 
