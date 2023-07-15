@@ -1,5 +1,5 @@
 import functools
-from typing import Optional, Sized
+from typing import Any
 
 from requests import Session
 
@@ -17,7 +17,7 @@ def ensure_iterable(item) -> list | tuple:
     return [item]
 
 
-def dmp_retry_reverse(old: list, new: list, current: list) -> Optional[list]:
+def dmp_retry_reverse(old: list, new: list, current: list) -> list | None:
     if result := dmp(old, new, current):
         return result
 
@@ -25,7 +25,7 @@ def dmp_retry_reverse(old: list, new: list, current: list) -> Optional[list]:
     return dmp(old, new[::-1], current)
 
 
-def dmp(old: list, new: list, current: list) -> Optional[list]:
+def dmp(old: list, new: list, current: list) -> list | None:
     old_lines = '\n'.join(old) + '\n'
     new_lines = '\n'.join(new) + '\n'
     current_lines = '\n'.join(current) + '\n'
@@ -66,7 +66,7 @@ def dmp(old: list, new: list, current: list) -> Optional[list]:
     return result
 
 
-def get_http_client(*, auth: Optional = None, headers: Optional[dict] = None):
+def get_http_client(*, auth: Any | None = None, headers: dict | None = None) -> Session:
     if not headers:
         headers = {}
 

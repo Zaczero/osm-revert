@@ -3,7 +3,6 @@ import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import chain
-from typing import Optional
 
 import xmltodict
 from requests import Session
@@ -192,7 +191,7 @@ def parse_action(action: dict) -> tuple[str, dict | None, dict]:
     return element_type, element_old, element_new
 
 
-def ensure_visible_tag(element: Optional[dict]) -> None:
+def ensure_visible_tag(element: dict | None) -> None:
     if not element:
         return
 

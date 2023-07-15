@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 import xmltodict
 from authlib.integrations.requests_client import OAuth1Auth
@@ -50,7 +49,7 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
     return visible
 
 
-def build_osm_change(diff: dict, changeset_id: Optional[str]) -> dict:
+def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
     result = {'osmChange': {
         '@version': 0.6,
         '@generator': CREATED_BY,
@@ -172,7 +171,7 @@ class OsmApi:
 
         return info | diff
 
-    def upload_diff(self, diff: dict, comment: str, extra_tags: Optional[dict] = None) -> Optional[str]:
+    def upload_diff(self, diff: dict, comment: str, extra_tags: dict | None = None) -> str | None:
         assert 'comment' not in extra_tags
         extra_tags['comment'] = comment
 

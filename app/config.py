@@ -15,6 +15,7 @@ CHANGESETS_LIMIT_CONFIG = {
         10: 3,
         100: 5,
         500: 10,
+        5000: 20,
     },
     'moderator': {
         0: 50
@@ -23,5 +24,4 @@ CHANGESETS_LIMIT_CONFIG = {
 
 TAG_MAX_LENGTH = 255
 TAG_PREFIX = 'revert'
-
 NO_TAG_PREFIX = {'comment', 'changesets_count', 'created_by', 'website'}
