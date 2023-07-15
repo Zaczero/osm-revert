@@ -10,12 +10,12 @@
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "args": [
-                "132604121",
+                "138526671,138526667",
                 "revert",
                 "--print_osc",
                 "True",
                 "--query_filter",
-                "way(!id:338444685);node(!id:3005697478)"
+                ""
             ],
             "console": "integratedTerminal",
             "justMyCode": true
