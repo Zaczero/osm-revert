@@ -7,6 +7,7 @@ import fire
 import xmltodict
 
 from config import CHANGESETS_LIMIT_CONFIG, CREATED_BY, WEBSITE
+from diff_entry import DiffEntry
 from invert import invert_diff
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
@@ -63,7 +64,7 @@ def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, dict[str, se
     return result
 
 
-def merge_and_sort_diffs(diffs: list[dict]) -> dict:
+def merge_and_sort_diffs(diffs: list[dict[str, list[DiffEntry]]]) -> dict[str, list[DiffEntry]]:
     result = diffs[0]
 
     for diff in diffs[1:]:
@@ -72,7 +73,7 @@ def merge_and_sort_diffs(diffs: list[dict]) -> dict:
 
     for element_type, elements in result.items():
         # sort by newest edits first
-        result[element_type] = sorted(elements, key=lambda t: t[0], reverse=True)
+        result[element_type] = sorted(elements, key=lambda t: t.timestamp, reverse=True)
 
     return result
 

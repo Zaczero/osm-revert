@@ -8,6 +8,7 @@ from typing import Optional
 import xmltodict
 from requests import Session
 
+from diff_entry import DiffEntry
 from utils import ensure_iterable, get_http_client
 
 
@@ -160,7 +161,7 @@ def fetch_overpass(client: Session, post_url: str, data: str, *, check_bad_reque
     return xmltodict.parse(response.text)
 
 
-def get_current_map(actions: list) -> dict:
+def get_current_map(actions: list[dict]) -> dict[str, dict[str, dict]]:
     result = {
         'node': {},
         'way': {},
@@ -206,7 +207,7 @@ class Overpass:
             'https://overpass-api.de/api'
         ]
 
-    def get_changeset_elements_history(self, changeset: dict, steps: int, query_filter: str) -> Optional[dict]:
+    def get_changeset_elements_history(self, changeset: dict, steps: int, query_filter: str) -> dict[str, list[DiffEntry]] | None:
         errors = []
 
         for base_url in self.base_urls:
@@ -232,13 +233,7 @@ class Overpass:
 
         return None
 
-    # noinspection PyMethodMayBeStatic
-    def _get_changeset_elements_history(
-            self,
-            changeset: dict,
-            steps: int,
-            query_filter: str,
-            base_url: str) -> dict | str:
+    def _get_changeset_elements_history(self, changeset: dict, steps: int, query_filter: str, base_url: str) -> dict[str, list[DiffEntry]] | str:
         # shlink = Shlink()
         shlink_available = False  # shlink.available
 
@@ -340,7 +335,7 @@ class Overpass:
 
         current_map = get_current_map(current_action)
 
-        result = {
+        result: dict[str, list[DiffEntry]] = {
             'node': [],
             'way': [],
             'relation': []
@@ -364,7 +359,12 @@ class Overpass:
             ensure_visible_tag(element_new)
             ensure_visible_tag(element_current)
 
-            result[element_type].append((timestamp, element_id, element_old, element_new, element_current))
+            result[element_type].append(DiffEntry(
+                timestamp,
+                element_id,
+                element_old,
+                element_new,
+                element_current))
 
         return result
 

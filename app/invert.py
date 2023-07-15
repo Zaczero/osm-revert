@@ -1,16 +1,16 @@
 import json
 from copy import deepcopy
-from typing import Optional
 
-from utils import ensure_iterable, dmp_retry_reverse
+from diff_entry import DiffEntry
+from utils import dmp_retry_reverse, ensure_iterable
 
 
-def set_visible_original(target: Optional[dict], current: dict):
+def set_visible_original(target: dict | None, current: dict):
     if target and '@visible:original' not in target:
         target['@visible:original'] = current['@visible']
 
 
-def invert_diff(diff: dict) -> (dict, dict, dict[str, list[str]]):
+def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str, list[str]]]:
     # we need this to make reverting multiple changesets at a time possible
     current_map = {
         'node': {},
@@ -48,7 +48,12 @@ def invert_diff(diff: dict) -> (dict, dict, dict[str, list[str]]):
     }
 
     for element_type, elements in diff.items():
-        for _, element_id, old, new, current in elements:
+        for entry in elements:
+            element_id = entry.element_id
+            old = entry.element_old
+            new = entry.element_new
+            current = entry.element_current
+
             if element_id not in version_map[element_type]:
                 version_map[element_type][element_id] = current['@version']
 
@@ -207,8 +212,7 @@ def invert_node_position(old: dict, new: dict, current: dict) -> None:
     current['@lon'] = old['@lon']
 
 
-def invert_way_nodes(old: dict, new: dict, current: dict,
-                     statistics: dict, warn_elements: dict[str, list[str]]) -> None:
+def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict, warn_elements: dict[str, list[str]]) -> None:
     old_nodes = [json.dumps(n) for n in ensure_iterable(old.get('nd', []))]
     new_nodes = [json.dumps(n) for n in ensure_iterable(new.get('nd', []))]
     current_nodes = [json.dumps(n) for n in ensure_iterable(current.get('nd', []))]
@@ -235,8 +239,9 @@ def invert_way_nodes(old: dict, new: dict, current: dict,
         statistics['dmp:way:id'].append(new['@id'])
     else:
         # absolute delete
-        create_diff = set(n['@ref'] for n in ensure_iterable(new.get('nd', []))) - \
-                      set(n['@ref'] for n in ensure_iterable(old.get('nd', [])))
+        create_diff = \
+            set(n['@ref'] for n in ensure_iterable(new.get('nd', []))) - \
+            set(n['@ref'] for n in ensure_iterable(old.get('nd', [])))
         current['nd'] = [n for n in ensure_iterable(current.get('nd', [])) if n['@ref'] not in create_diff]
 
         statistics['dmp:fail:way'] += 1
@@ -244,8 +249,7 @@ def invert_way_nodes(old: dict, new: dict, current: dict,
         warn_elements['way'].append(new['@id'])
 
 
-def invert_relation_members(old: dict, new: dict, current: dict,
-                            statistics: dict, warn_elements: dict[str, list[str]]) -> None:
+def invert_relation_members(old: dict, new: dict, current: dict, statistics: dict, warn_elements: dict[str, list[str]]) -> None:
     old_members = [json.dumps(m) for m in ensure_iterable(old.get('member', []))]
     new_members = [json.dumps(m) for m in ensure_iterable(new.get('member', []))]
     current_members = [json.dumps(m) for m in ensure_iterable(current.get('member', []))]
@@ -272,8 +276,9 @@ def invert_relation_members(old: dict, new: dict, current: dict,
         statistics['dmp:relation:id'].append(new['@id'])
     else:
         # absolute delete
-        create_diff = set(m['@ref'] for m in ensure_iterable(new.get('member', []))) - \
-                      set(m['@ref'] for m in ensure_iterable(old.get('member', [])))
+        create_diff = \
+            set(m['@ref'] for m in ensure_iterable(new.get('member', []))) - \
+            set(m['@ref'] for m in ensure_iterable(old.get('member', [])))
         current['member'] = [m for m in ensure_iterable(current.get('member', [])) if m['@ref'] not in create_diff]
 
         statistics['dmp:fail:relation'] += 1
