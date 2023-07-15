@@ -218,6 +218,7 @@ class OsmApi:
 
         if diff_resp.status_code == 409:
             print(f'🆚 Failed to upload the changes ({diff_resp.status_code})')
+            print(f'🆚 {diff_resp.text}')
             print(f'🆚 The Overpass data is outdated, please try again shortly')
             return None
 
