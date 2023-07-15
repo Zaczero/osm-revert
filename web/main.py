@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from shlex import quote
 from typing import Optional
 
 from authlib.integrations.starlette_client import OAuth
@@ -177,13 +178,16 @@ async def main(ws: WebSocket, args: dict) -> str:
         '--env', f'CONSUMER_KEY={consumer_key}',
         '--env', f'CONSUMER_SECRET={consumer_secret}',
         'zaczero/osm-revert',
-        '--changeset_ids', ','.join(changesets),
-        '--query_filter', query_filter,
-        '--comment', comment,
-        '--oauth_token', token['oauth_token'],
-        '--oauth_token_secret', token['oauth_token_secret'],
-        '--discussion', discussion,
-        '--discussion_target', discussion_target,
+        (
+            'pipenv run python main.py '
+            '--changeset_ids ' + quote(','.join(changesets)) + ' '
+            '--query_filter ' + quote(query_filter) + ' '
+            '--comment ' + quote(comment) + ' '
+            '--oauth_token ' + quote(token['oauth_token']) + ' '
+            '--oauth_token_secret ' + quote(token['oauth_token_secret']) + ' '
+            '--discussion ' + quote(discussion) + ' '
+            '--discussion_target ' + quote(discussion_target)
+        ),
         *extra_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT)
