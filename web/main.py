@@ -186,9 +186,9 @@ async def main(ws: WebSocket, args: dict) -> str:
             '--oauth_token ' + quote(token['oauth_token']) + ' '
             '--oauth_token_secret ' + quote(token['oauth_token_secret']) + ' '
             '--discussion ' + quote(discussion) + ' '
-            '--discussion_target ' + quote(discussion_target)
+            '--discussion_target ' + quote(discussion_target) + ' ' +
+            ' '.join(extra_args)
         ),
-        *extra_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT)
 
