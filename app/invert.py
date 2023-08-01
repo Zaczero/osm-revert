@@ -2,7 +2,7 @@ import json
 from copy import deepcopy
 
 from diff_entry import DiffEntry
-from utils import dmp_retry_reverse, ensure_iterable
+from utils import dmp_retry_reverse, ensure_iterable, limit_execution_count
 
 
 def set_visible_original(target: dict | None, current: dict):
@@ -80,7 +80,8 @@ def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str,
                     current_map[element_type][element_id] = old
                 # advanced revert (element currently is not deleted)
                 elif current['@visible'] == 'true':
-                    print(f'🛠️ Performing advanced revert on {element_type}:{element_id}')
+                    if not limit_execution_count('advanced revert', 50):
+                        print(f'🛠️ Performing advanced revert on {element_type}/{element_id}')
                     statistics[f'fix:{element_type}'] += 1
 
                     current['tag'] = ensure_iterable(current.get('tag', []))
@@ -230,7 +231,7 @@ def invert_way_nodes(old: dict, new: dict, current: dict, statistics: dict, warn
         current['nd'] = old['nd']
         return
 
-    print(f'💡 Performing DMP patch on way:{new["@id"]}')
+    print(f'💡 Performing DMP patch on way/{new["@id"]}')
 
     if patch := dmp_retry_reverse(old_nodes, new_nodes, current_nodes):
         current['nd'] = [json.loads(p) for p in patch]
@@ -267,7 +268,7 @@ def invert_relation_members(old: dict, new: dict, current: dict, statistics: dic
         current['member'] = old['member']
         return
 
-    print(f'💡 Performing DMP patch relation:{new["@id"]}')
+    print(f'💡 Performing DMP patch relation/{new["@id"]}')
 
     if patch := dmp_retry_reverse(old_members, new_members, current_members):
         current['member'] = [json.loads(p) for p in patch]

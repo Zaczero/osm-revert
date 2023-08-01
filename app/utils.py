@@ -1,10 +1,25 @@
 import functools
+from collections import defaultdict
 from typing import Any
 
 from requests import Session
 
 from config import USER_AGENT
 from diff_match_patch import diff_match_patch
+
+_RUN_COUNTER = defaultdict(int)
+
+
+def limit_execution_count(name: str, limit: int) -> bool:
+    if _RUN_COUNTER[name] >= limit:
+        return True
+
+    _RUN_COUNTER[name] += 1
+
+    if _RUN_COUNTER[name] >= limit:
+        print(f'🔇 Too verbose, suppressing further messages for {name!r}')
+
+    return False
 
 
 def ensure_iterable(item) -> list | tuple:
