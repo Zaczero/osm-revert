@@ -17,7 +17,7 @@ def limit_execution_count(name: str, limit: int) -> bool:
     _RUN_COUNTER[name] += 1
 
     if _RUN_COUNTER[name] >= limit:
-        print(f'🔇 Too verbose, suppressing further messages for {name!r}')
+        print(f'🔇 Suppressing further messages for {name!r}')
 
     return False
 
