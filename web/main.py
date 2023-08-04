@@ -181,12 +181,12 @@ async def main(ws: WebSocket, args: dict) -> str:
         (
             'pipenv run python main.py '
             '--changeset_ids ' + quote(','.join(changesets)) + ' '
-            '--query_filter ' + quote(query_filter) + ' '
-            '--comment ' + quote(comment) + ' '
-            '--oauth_token ' + quote(token['oauth_token']) + ' '
-            '--oauth_token_secret ' + quote(token['oauth_token_secret']) + ' '
-            '--discussion ' + quote(discussion) + ' '
-            '--discussion_target ' + quote(discussion_target) + ' ' +
+            '--query_filter ' + quote(quote(query_filter)) + ' '
+            '--comment ' + quote(quote(comment)) + ' '
+            '--oauth_token ' + quote(quote(token['oauth_token'])) + ' '
+            '--oauth_token_secret ' + quote(quote(token['oauth_token_secret'])) + ' '
+            '--discussion ' + quote(quote(discussion)) + ' '
+            '--discussion_target ' + quote(quote(discussion_target)) + ' ' +
             ' '.join(extra_args)
         ),
         stdout=asyncio.subprocess.PIPE,
