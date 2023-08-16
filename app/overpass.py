@@ -18,6 +18,11 @@ def parse_timestamp(timestamp: str) -> int:
 
 def get_bbox(changeset: dict) -> str:
     e = changeset['osm']['changeset']
+
+    # some changesets don't have a bbox
+    if '@min_lat' not in e:
+        return ''
+
     min_lat, max_lat = e['@min_lat'], e['@max_lat']
     min_lon, max_lon = e['@min_lon'], e['@max_lon']
     return f'[bbox:{min_lat},{min_lon},{max_lat},{max_lon}]'
@@ -233,9 +238,6 @@ class Overpass:
         return None
 
     def _get_changeset_elements_history(self, changeset: dict, steps: int, query_filter: str, base_url: str) -> dict[str, list[DiffEntry]] | str:
-        # shlink = Shlink()
-        shlink_available = False  # shlink.available
-
         bbox = get_bbox(changeset)
         changeset_id = changeset['osm']['changeset']['@id']
         changeset_edits = []
@@ -318,19 +320,7 @@ class Overpass:
                 current_partition_action = ensure_iterable(current_diff['osm'].get('action', []))
                 current_action.extend(current_partition_action)
 
-                # BLOCKED: https://github.com/shlinkio/shlink/issues/1674
-                # if shlink_available:
-                #     try:
-                #         query_long_url = base_url + f'/convert?data={quote_plus(changeset_data)}&target=mapql'
-                #         query_short_url = shlink.shorten(query_long_url)
-                #         print(f'[{i + 2}/{steps}] Partition OK ({partition_size}); Query: {query_short_url}')
-                #     except Exception:
-                #         traceback.print_exc()
-                #         shlink_available = False
-                #         print('⚡️ Shlink is not available (query preview disabled)')
-
-                if not shlink_available:
-                    print(f'[{i + 2}/{steps}] Partition #{i + 1}: OK')
+                print(f'[{i + 2}/{steps}] Partition #{i + 1}: OK')
 
         current_map = get_current_map(current_action)
 
