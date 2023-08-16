@@ -68,9 +68,9 @@ async def fetch_user_details(request: Request) -> Optional[dict]:
 @app.post('/')
 async def index(request: Request):
     if user := await fetch_user_details(request):
-        return templates.TemplateResponse('authorized.html', {'request': request, 'user': user})
+        return templates.TemplateResponse('authorized.jinja2', {'request': request, 'user': user})
     else:
-        return templates.TemplateResponse('index.html', {'request': request})
+        return templates.TemplateResponse('index.jinja2', {'request': request})
 
 
 @app.post('/login')

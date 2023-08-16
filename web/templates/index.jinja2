@@ -1,0 +1,27 @@
+{% extends '_base.jinja2' %}
+{% block body %}
+
+<ul>
+    <li>
+        <b>Faster</b><br>
+        This reverter uses <a href="https://overpass-api.de" target="_blank">Overpass</a> to reduce the amount of
+        API calls.
+    </li>
+    <li>
+        <b>Smarter</b><br>
+        This reverter uses <a href="https://github.com/google/diff-match-patch" target="_blank">Google's
+            diff-match-patch</a> library to automatically resolve conflicts.
+    </li>
+    <li>
+        <b>Limitless</b><br>
+        This reverter has no arbitrary limits on the changeset size.
+    </li>
+</ul>
+
+<form class="text-center" action="/login" method="post">
+    <button class="btn btn-primary" type="submit">
+        <img src="/static/openstreetmap.svg" height="22" alt="OpenStreetMap logo">
+        Login with <b>OpenStreetMap</b>
+    </button>
+</form>
+{% endblock %}
