@@ -26,7 +26,7 @@
 <label class="w-100">
     <a href="https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL" target="_blank">Overpass QL</a>
     filter (optional):
-    <div class="small text-secondary"><i>Includes elements that match either old or new, or both.</i></div>
+    <div class="small text-secondary"><i>Reverts elements that match either old or new, or both.</i></div>
     <textarea id="query-filter" class="form-control" rows="2"
         placeholder="node[ford=yes]; way[!highway]; rel(id:7532,99517)"
         spellcheck="false">{{ request.query_params.get('query-filter', '') }}</textarea>
