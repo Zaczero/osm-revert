@@ -12,6 +12,7 @@ with pkgs; let
   devBuildInputs = [
     gnumake
     pipenv
+    esbuild
   ];
 
   commonShellHook = ''
@@ -26,6 +27,7 @@ with pkgs; let
   '';
 
   dockerShellHook = ''
+    make bundle
   '';
 in
 pkgs.mkShell {

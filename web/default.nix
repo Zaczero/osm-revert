@@ -31,6 +31,7 @@ dockerTools.buildLayeredImage {
     cp "${./.}"/*.py .
     cp -r "${./.}"/static .
     cp -r "${./.}"/templates .
+    export PATH="${esbuild}/bin:$PATH"
     ${shell.shellHook}
   '';
 
