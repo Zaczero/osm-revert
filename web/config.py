@@ -14,3 +14,5 @@ if not OSM_CLIENT or not OSM_SECRET:
     print('🚧 Warning: '
           'Environment variables OSM_CLIENT and/or OSM_SECRET are not set. '
           'You will not be able to authenticate with OpenStreetMap.')
+
+CONNECTION_LIMIT = int(os.getenv('CONNECTION_LIMIT', 2))

@@ -15,8 +15,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from config import (INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OSM_SECRET,
-                    USER_AGENT)
+from config import (CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES,
+                    OSM_SECRET, USER_AGENT)
 
 INDEX_REDIRECT = RedirectResponse('/', status_code=status.HTTP_302_FOUND)
 
@@ -27,7 +27,7 @@ app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 templates = Jinja2Templates(directory='templates')
 
 user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
-active_ws = defaultdict(lambda: asyncio.Semaphore(2))
+active_ws = defaultdict(lambda: asyncio.Semaphore(CONNECTION_LIMIT))
 
 
 async def fetch_user_details(request: Request) -> Optional[dict]:
