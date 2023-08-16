@@ -1,34 +1,28 @@
 import asyncio
+import json
 import os
 import re
 from shlex import quote
 from typing import Optional
 
-from authlib.integrations.starlette_client import OAuth
+from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from itsdangerous import Serializer
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-oauth = OAuth()
-oauth.register(
-    name='osm',
-    client_id=os.getenv('CONSUMER_KEY'),
-    client_secret=os.getenv('CONSUMER_SECRET'),
-    request_token_url='https://www.openstreetmap.org/oauth/request_token',
-    access_token_url='https://www.openstreetmap.org/oauth/access_token',
-    authorize_url='https://www.openstreetmap.org/oauth/authorize'
-)
+from config import (INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OSM_SECRET,
+                    USER_AGENT)
+
+INDEX_REDIRECT = RedirectResponse('/', status_code=status.HTTP_302_FOUND)
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=os.getenv('INSTANCE_SECRET'))
+app.add_middleware(SessionMiddleware, secret_key=INSTANCE_SECRET, max_age=31536000)  # 1 year
 app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
-secret = Serializer(os.getenv('INSTANCE_SECRET'))
 templates = Jinja2Templates(directory='templates')
 
 user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
@@ -40,16 +34,19 @@ async def fetch_user_details(request: Request) -> Optional[dict]:
         return None
 
     try:
-        token = secret.loads(request.cookies['token'])
+        token = request.session['oauth_token']
     except Exception:
         return None
 
-    user_cache_key = token['oauth_token_secret']
+    user_cache_key = token['access_token']
 
     try:
         return user_cache[user_cache_key]
     except Exception:
-        response = await oauth.osm.get('https://api.openstreetmap.org/api/0.6/user/details.json', token=token)
+        async with AsyncOAuth2Client(
+                token=token,
+                headers={'User-Agent': USER_AGENT}) as http:
+            response = await http.get('https://api.openstreetmap.org/api/0.6/user/details.json')
 
         if response.status_code != 200:
             return None
@@ -77,28 +74,39 @@ async def index(request: Request):
 
 @app.post('/login')
 async def login(request: Request):
-    return await oauth.osm.authorize_redirect(request, str(request.url_for('callback')))
+    async with AsyncOAuth2Client(
+            client_id=OSM_CLIENT,
+            scope=OSM_SCOPES,
+            redirect_uri=str(request.url_for('callback'))) as http:
+        authorization_url, state = http.create_authorization_url('https://www.openstreetmap.org/oauth2/authorize')
+
+    request.session['oauth_state'] = state
+    return RedirectResponse(authorization_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get('/callback')
 async def callback(request: Request):
-    token = await oauth.osm.authorize_access_token(request)
+    state = request.session.pop('oauth_state', None)
 
-    response = RedirectResponse(request.url_for('index'))
-    response.set_cookie('token', secret.dumps(token),
-                        max_age=(3600 * 24 * 365),
-                        secure=request.url.scheme == 'https',
-                        httponly=True)
+    if state is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Invalid OAuth state')
 
-    return response
+    async with AsyncOAuth2Client(
+            client_id=OSM_CLIENT,
+            client_secret=OSM_SECRET,
+            redirect_uri=str(request.url_for('callback')),
+            state=state,
+            headers={'User-Agent': USER_AGENT}) as http:
+        token = await http.fetch_token('https://www.openstreetmap.org/oauth2/token', authorization_response=str(request.url))
+
+    request.session['oauth_token'] = token
+    return INDEX_REDIRECT
 
 
 @app.post('/logout')
 async def logout(request: Request):
-    response = RedirectResponse(request.url_for('index'))
-    response.set_cookie('token', '', max_age=0)
-
-    return response
+    request.session.pop('oauth_token', None)
+    return INDEX_REDIRECT
 
 
 @app.websocket('/ws')
@@ -110,7 +118,7 @@ async def websocket(ws: WebSocket):
         return
 
     try:
-        session_id = secret.loads(ws.cookies['token'])['oauth_token_secret']
+        session_id = ws.session['oauth_token']['access_token']
     except Exception:
         await ws.close(1008)
         return
@@ -160,11 +168,9 @@ async def main(ws: WebSocket, args: dict) -> str:
 
     assert discussion_target in {'all', 'newest', 'oldest'}, 'Invalid discussion target'
 
-    token = secret.loads(ws.cookies['token'])
+    token = ws.session['oauth_token']
     version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
     website = os.getenv('OSM_REVERT_WEBSITE', '')
-    consumer_key = os.getenv('CONSUMER_KEY')
-    consumer_secret = os.getenv('CONSUMER_SECRET')
 
     if upload:
         extra_args = []
@@ -175,20 +181,14 @@ async def main(ws: WebSocket, args: dict) -> str:
         'docker', 'run', '--rm',
         '--env', f'OSM_REVERT_VERSION_SUFFIX={version_suffix}',
         '--env', f'OSM_REVERT_WEBSITE={website}',
-        '--env', f'CONSUMER_KEY={consumer_key}',
-        '--env', f'CONSUMER_SECRET={consumer_secret}',
         'zaczero/osm-revert',
-        (
-            'pipenv run python main.py '
-            '--changeset_ids ' + quote(','.join(changesets)) + ' '
-            '--query_filter ' + quote(quote(query_filter)) + ' '
-            '--comment ' + quote(quote(comment)) + ' '
-            '--oauth_token ' + quote(quote(token['oauth_token'])) + ' '
-            '--oauth_token_secret ' + quote(quote(token['oauth_token_secret'])) + ' '
-            '--discussion ' + quote(quote(discussion)) + ' '
-            '--discussion_target ' + quote(quote(discussion_target)) + ' ' +
-            ' '.join(extra_args)
-        ),
+        '--changeset_ids', quote(','.join(changesets)),
+        '--query_filter', quote(query_filter),
+        '--comment', quote(comment),
+        '--oauth_token', quote(json.dumps(token)),
+        '--discussion', quote(discussion),
+        '--discussion_target', quote(discussion_target),
+        *extra_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT)
 

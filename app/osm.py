@@ -1,7 +1,5 @@
-import os
-
 import xmltodict
-from authlib.integrations.requests_client import OAuth1Auth
+from authlib.integrations.requests_client import OAuth2Auth
 
 from config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX
 from utils import ensure_iterable, get_http_client
@@ -92,17 +90,12 @@ def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
 class OsmApi:
     def __init__(self, *,
                  username: str = None, password: str = None,
-                 oauth_token: str = None, oauth_token_secret: str = None):
+                 oauth_token: dict = None):
         self.base_url_no_version = 'https://api.openstreetmap.org/api'
         self.base_url = self.base_url_no_version + '/0.6'
 
-        if oauth_token and oauth_token_secret:
-            self.auth = OAuth1Auth(
-                client_id=os.getenv('CONSUMER_KEY'),
-                client_secret=os.getenv('CONSUMER_SECRET'),
-                token=oauth_token,
-                token_secret=oauth_token_secret
-            )
+        if oauth_token:
+            self.auth = OAuth2Auth(oauth_token)
         elif username and password:
             self.auth = (username, password)
         else:

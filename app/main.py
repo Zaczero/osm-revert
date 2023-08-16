@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import traceback
@@ -124,7 +125,7 @@ def main_timer(func):
 @main_timer
 def main(changeset_ids: list | str | int, comment: str,
          username: str = None, password: str = None, *,
-         oauth_token: str = None, oauth_token_secret: str = None,
+         oauth_token: str = None,
          discussion: str = None, discussion_target: str = None,
          osc_file: str = None, print_osc: bool = None,
          query_filter: str = '') -> int:
@@ -138,8 +139,11 @@ def main(changeset_ids: list | str | int, comment: str,
         username = os.getenv('OSM_USERNAME')
         password = os.getenv('OSM_PASSWORD')
 
+    if oauth_token:
+        oauth_token: dict = json.loads(oauth_token)
+
     print('🔒️ Logging in to OpenStreetMap')
-    osm = OsmApi(username=username, password=password, oauth_token=oauth_token, oauth_token_secret=oauth_token_secret)
+    osm = OsmApi(username=username, password=password, oauth_token=oauth_token)
     user = osm.get_authorized_user()
 
     user_edits = user['changesets']['count']
