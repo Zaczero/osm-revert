@@ -1,6 +1,6 @@
 FROM nixos/nix
 
-RUN nix-channel --add https://channels.nixos.org/nixos-23.05 nixpkgs && \
+RUN nix-channel --add https://channels.nixos.org/nixos-22.11 nixpkgs && \
     nix-channel --update
 
 WORKDIR /app
