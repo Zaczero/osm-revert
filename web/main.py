@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+from collections import defaultdict
 from shlex import quote
 from typing import Optional
 
@@ -26,7 +27,7 @@ app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 templates = Jinja2Templates(directory='templates')
 
 user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
-active_ws = {}
+active_ws = defaultdict(lambda: asyncio.Semaphore(2))
 
 
 async def fetch_user_details(request: Request) -> Optional[dict]:
@@ -123,11 +124,13 @@ async def websocket(ws: WebSocket):
         await ws.close(1008)
         return
 
-    if session_id in active_ws:
-        await ws.close(1008, 'Only one WebSocket connection is allowed per user')
+    semaphore = active_ws[session_id]
+
+    if semaphore.locked():
+        await ws.close(1008, 'Too many simultaneous connections for this user')
         return
 
-    active_ws[session_id] = ws
+    await semaphore.acquire()
 
     try:
         while True:
@@ -140,7 +143,7 @@ async def websocket(ws: WebSocket):
     except Exception as e:
         await ws.close(1011, str(e))
     finally:
-        active_ws.pop(session_id, None)
+        semaphore.release()
 
 
 async def main(ws: WebSocket, args: dict) -> str:
