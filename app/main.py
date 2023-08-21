@@ -9,7 +9,7 @@ import xmltodict
 
 from config import CHANGESETS_LIMIT_CONFIG, CREATED_BY, WEBSITE
 from diff_entry import DiffEntry
-from invert import invert_diff
+from invert import Inverter
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
 from utils import ensure_iterable
@@ -215,7 +215,8 @@ def main(changeset_ids: list | str | int, comment: str,
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
 
-    invert, statistics, warn_elements = invert_diff(merged_diffs, only_tags)
+    inverter = Inverter(only_tags)
+    invert = inverter.invert_diff(merged_diffs)
     parents = overpass.update_parents(invert)
 
     if parents:
@@ -252,7 +253,7 @@ def main(changeset_ids: list | str | int, comment: str,
             print(osm_change_xml)
             print('</osc>')
 
-        print_warn_elements(warn_elements)
+        print_warn_elements(inverter.warnings)
         print(f'✅ Success')
         return 0
 
@@ -273,7 +274,7 @@ def main(changeset_ids: list | str | int, comment: str,
         if query_filter:
             extra_args['filter'] = query_filter
 
-        if changeset_id := osm.upload_diff(invert, comment, extra_args | statistics):
+        if changeset_id := osm.upload_diff(invert, comment, extra_args | inverter.statistics):
             changeset_url = f'https://www.openstreetmap.org/changeset/{changeset_id}'
 
             discussion = discussion.strip()
@@ -289,7 +290,7 @@ def main(changeset_ids: list | str | int, comment: str,
                     osm.add_comment_to_changeset(changeset_id, discussion)
                     print(f'[{i}/{len(d_changeset_ids)}] Changeset {changeset_id}: OK')
 
-            print_warn_elements(warn_elements)
+            print_warn_elements(inverter.warnings)
             print(f'✅ Success')
             print(f'✅ {changeset_url}')
             return 0
