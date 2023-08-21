@@ -31,7 +31,7 @@ active_ws = defaultdict(lambda: asyncio.Semaphore(CONNECTION_LIMIT))
 
 
 async def fetch_user_details(request: Request) -> Optional[dict]:
-    if 'token' not in request.cookies:
+    if 'oauth_token' not in request.session:
         return None
 
     try:
@@ -114,7 +114,7 @@ async def logout(request: Request):
 async def websocket(ws: WebSocket):
     await ws.accept()
 
-    if 'token' not in ws.cookies:
+    if 'oauth_token' not in ws.session:
         await ws.close(1008)
         return
 
