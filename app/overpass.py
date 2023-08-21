@@ -341,7 +341,7 @@ class Overpass:
             # if element_old and int(element_new['@version']) - int(element_old['@version']) != 1:
             #     return '❓ Overpass data is corrupted (bad_version)'
 
-            if not element_old and int(element_new['@version']) == 2:
+            if not element_old and int(element_new['@version']) == 2 and not REVERT_TO_DATE:
                 return '❓ Overpass data is corrupted (impossible_create)'
 
             timestamp = parse_timestamp(element_new['@timestamp'])
