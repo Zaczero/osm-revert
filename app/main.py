@@ -128,12 +128,20 @@ def main(changeset_ids: list | str | int, comment: str,
          oauth_token: str = None,
          discussion: str = None, discussion_target: str = None,
          osc_file: str = None, print_osc: bool = None,
-         query_filter: str = '') -> int:
-    changeset_ids = list(sorted(set(
-        str(changeset_id).strip() for changeset_id in ensure_iterable(changeset_ids) if changeset_id
+         query_filter: str = '', only_tags: list | str | int = '') -> int:
+    changeset_ids = tuple(sorted(set(
+        str(cs_id).strip()
+        for cs_id in ensure_iterable(changeset_ids)
+        if cs_id
     )))
     assert changeset_ids, 'Missing changeset id'
     assert all(c.isnumeric() for c in changeset_ids), 'Changeset ids must be numeric'
+
+    only_tags = frozenset(
+        str(only_tag).strip()
+        for only_tag in ensure_iterable(only_tags)
+        if only_tag
+    )
 
     if not username and not password:
         username = os.getenv('OSM_USERNAME')
@@ -207,7 +215,7 @@ def main(changeset_ids: list | str | int, comment: str,
     print('🔁 Generating a revert')
     merged_diffs = merge_and_sort_diffs(diffs)
 
-    invert, statistics, warn_elements = invert_diff(merged_diffs)
+    invert, statistics, warn_elements = invert_diff(merged_diffs, only_tags)
     parents = overpass.update_parents(invert)
 
     if parents:

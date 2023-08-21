@@ -10,7 +10,7 @@ def set_visible_original(target: dict | None, current: dict):
         target['@visible:original'] = current['@visible']
 
 
-def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str, list[str]]]:
+def invert_diff(diff: dict[str, list[DiffEntry]], only_tags: frozenset[str]) -> tuple[dict, dict, dict[str, list[str]]]:
     # we need this to make reverting multiple changesets at a time possible
     current_map = {
         'node': {},
@@ -67,7 +67,7 @@ def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str,
             set_visible_original(current, current)
 
             # create
-            if (not old or old['@visible'] == 'false') and new['@visible'] == 'true':
+            if (not old or old['@visible'] == 'false') and new['@visible'] == 'true' and not only_tags:
                 # absolute delete
                 if current['@visible'] == 'true':
                     current['@visible'] = 'false'
@@ -76,7 +76,7 @@ def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str,
             # modify
             elif old['@visible'] == 'true' and new['@visible'] == 'true':
                 # simple revert
-                if current['@version'] == new['@version']:
+                if current['@version'] == new['@version'] and not only_tags:
                     current_map[element_type][element_id] = old
                 # advanced revert (element currently is not deleted)
                 elif current['@visible'] == 'true':
@@ -87,22 +87,23 @@ def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str,
                     current['tag'] = ensure_iterable(current.get('tag', []))
                     current_original = deepcopy(current)
 
-                    invert_tags(old, new, current)
+                    invert_tags(old, new, current, only_tags)
 
-                    if element_type == 'node':
-                        invert_node_position(old, new, current)
-                    elif element_type == 'way':
-                        invert_way_nodes(old, new, current, statistics, warn_elements)
-                    elif element_type == 'relation':
-                        invert_relation_members(old, new, current, statistics, warn_elements)
-                    else:
-                        raise
+                    if not only_tags:
+                        if element_type == 'node':
+                            invert_node_position(old, new, current)
+                        elif element_type == 'way':
+                            invert_way_nodes(old, new, current, statistics, warn_elements)
+                        elif element_type == 'relation':
+                            invert_relation_members(old, new, current, statistics, warn_elements)
+                        else:
+                            raise
 
                     if current != current_original:
                         current_map[element_type][element_id] = current
 
             # delete
-            elif old['@visible'] == 'true' and new['@visible'] == 'false':
+            elif old['@visible'] == 'true' and new['@visible'] == 'false' and not only_tags:
                 # do not restore repeatedly deleted elements
                 if current['@version'] == new['@version']:
                     current_map[element_type][element_id] = old
@@ -129,28 +130,26 @@ def invert_diff(diff: dict[str, list[DiffEntry]]) -> tuple[dict, dict, dict[str,
     return result, statistics, warn_elements
 
 
-def invert_tags(old: dict, new: dict, current: dict) -> None:
-    old['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(old.get('tag', []))}
-    new['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(new.get('tag', []))}
-    current['tag'] = {d['@k']: d['@v'] for d in ensure_iterable(current.get('tag', []))}
+def invert_tags(old: dict, new: dict, current: dict, only_tags: frozenset[str]) -> None:
+    old_tags = {d['@k']: d['@v'] for d in ensure_iterable(old.get('tag', []))}
+    new_tags = {d['@k']: d['@v'] for d in ensure_iterable(new.get('tag', []))}
+    current_tags = {d['@k']: d['@v'] for d in ensure_iterable(current.get('tag', []))}
 
-    invert_tags_create(old, new, current)
-    invert_tags_modify(old, new, current)
-    invert_tags_delete(old, new, current)
+    invert_tags_create(old_tags, new_tags, current_tags, only_tags)
+    invert_tags_modify(old_tags, new_tags, current_tags, only_tags)
+    invert_tags_delete(old_tags, new_tags, current_tags, only_tags)
 
-    old['tag'] = [{'@k': k, '@v': v} for k, v in old['tag'].items()]
-    new['tag'] = [{'@k': k, '@v': v} for k, v in new['tag'].items()]
-    current['tag'] = [{'@k': k, '@v': v} for k, v in current['tag'].items()]
+    current['tag'] = [{'@k': k, '@v': v} for k, v in current_tags.items()]
 
 
-def invert_tags_create(old: dict, new: dict, current: dict) -> None:
-    old_tags = old['tag']
-    new_tags = new['tag']
-    current_tags = current['tag']
-
+def invert_tags_create(old_tags: dict, new_tags: dict, current_tags: dict, only_tags: frozenset[str]) -> None:
     changed_items = set(new_tags.items()) - set(old_tags.items())
 
     for key, value in changed_items:
+        # ignore only_tags mode
+        if only_tags and key not in only_tags:
+            continue
+
         # ignore modified
         if key in old_tags:
             continue
@@ -162,14 +161,14 @@ def invert_tags_create(old: dict, new: dict, current: dict) -> None:
         del current_tags[key]
 
 
-def invert_tags_modify(old: dict, new: dict, current: dict) -> None:
-    old_tags = old['tag']
-    new_tags = new['tag']
-    current_tags = current['tag']
-
+def invert_tags_modify(old_tags: dict, new_tags: dict, current_tags: dict, only_tags: frozenset[str]) -> None:
     changed_items = set(new_tags.items()) - set(old_tags.items())
 
     for key, value in changed_items:
+        # ignore only_tags mode
+        if only_tags and key not in only_tags:
+            continue
+
         # ignore created
         if key not in old_tags:
             continue
@@ -181,14 +180,14 @@ def invert_tags_modify(old: dict, new: dict, current: dict) -> None:
         current_tags[key] = old_tags[key]
 
 
-def invert_tags_delete(old: dict, new: dict, current: dict) -> None:
-    old_tags = old['tag']
-    new_tags = new['tag']
-    current_tags = current['tag']
-
+def invert_tags_delete(old_tags: dict, new_tags: dict, current_tags: dict, only_tags: frozenset[str]) -> None:
     changed_items = set(old_tags.items()) - set(new_tags.items())
 
     for key, value in changed_items:
+        # ignore only_tags mode
+        if only_tags and key not in only_tags:
+            continue
+
         # ignore modified
         if key in new_tags:
             continue
