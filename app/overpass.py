@@ -7,6 +7,7 @@ from itertools import chain
 import xmltodict
 from requests import Session
 
+from config import REVERT_TO_DATE
 from diff_entry import DiffEntry
 from utils import ensure_iterable, get_http_client
 
@@ -40,10 +41,12 @@ def get_new_date(timestamp: str) -> str:
 
 
 def get_changeset_adiff(timestamp: str) -> str:
-    date_format = '%Y-%m-%dT%H:%M:%SZ'
-    created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
-
-    return f'[adiff:"{created_at_minus_one}","{timestamp}"]'
+    if REVERT_TO_DATE is None:
+        date_format = '%Y-%m-%dT%H:%M:%SZ'
+        created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
+        return f'[adiff:"{created_at_minus_one}","{timestamp}"]'
+    else:
+        return f'[adiff:"{REVERT_TO_DATE}","{timestamp}"]'
 
 
 def get_current_adiff(timestamp: str) -> str:
@@ -334,8 +337,9 @@ class Overpass:
             if element_new['@changeset'] != changeset_id:
                 return '❓ Overpass data is corrupted (bad_changeset)'
 
-            if element_old and int(element_new['@version']) - int(element_old['@version']) != 1:
-                return '❓ Overpass data is corrupted (bad_version)'
+            # NOTE: this may happen legitimately when there are multiple changesets at the same time
+            # if element_old and int(element_new['@version']) - int(element_old['@version']) != 1:
+            #     return '❓ Overpass data is corrupted (bad_version)'
 
             if not element_old and int(element_new['@version']) == 2:
                 return '❓ Overpass data is corrupted (impossible_create)'

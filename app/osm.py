@@ -8,18 +8,23 @@ from utils import ensure_iterable, get_http_client
 def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
     change_ids = {rel['@id'] for rel in relations}
 
-    dependency_state = [
-        (rel, set(
+    # tuples: (relation, set of relation ids it depends on)
+    dependency_state = {
+        rel['@id']: (rel, set(
             m['@ref'] for m in ensure_iterable(rel.get('member', []))
             if m['@type'] == 'relation'
         ).intersection(change_ids))
-        for rel in relations]
+        for rel in relations
+    }
 
-    no_dependencies = [
-        rel for rel, deps in dependency_state
-        if not deps]
+    no_dependencies = []
 
-    visible = []
+    for rel_id, (rel, deps) in tuple(dependency_state.items()):
+        if not deps:
+            no_dependencies.append(rel)
+            dependency_state.pop(rel_id)
+
+    result = []
     hidden = []
 
     while no_dependencies:
@@ -27,24 +32,26 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
         rel_id = rel['@id']
 
         if rel['@visible'] == 'true':
-            visible.append(rel)
+            result.append(rel)
         else:
             hidden.append(rel)
 
-        for other_rel, deps in dependency_state:
+        for other_rel_id, (other_rel, deps) in tuple(dependency_state.items()):
             if rel_id in deps:
                 deps.remove(rel_id)
 
                 if not deps:
                     no_dependencies.append(other_rel)
+                    dependency_state.pop(other_rel_id)
 
     # delete relations with most dependencies first
-    visible.extend(reversed(hidden))
+    result.extend(reversed(hidden))
 
-    if len(visible) != len(dependency_state):
-        raise ValueError('Circular relation dependencies detected')
+    for rel, deps in dependency_state.values():
+        print(f'🚧 Warning: relation/{rel["@id"]} has {len(deps)} circular dependencies')
+        result.append(rel)
 
-    return visible
+    return result
 
 
 def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
