@@ -1,7 +1,8 @@
 import xmltodict
-from authlib.integrations.requests_client import OAuth2Auth
+from authlib.integrations.httpx_client import OAuth2Auth
 
-from config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX
+from config import (CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX,
+                    XML_HEADERS)
 from utils import ensure_iterable, get_http_client
 
 
@@ -98,46 +99,35 @@ class OsmApi:
     def __init__(self, *,
                  username: str = None, password: str = None,
                  oauth_token: dict = None):
-        self.base_url_no_version = 'https://api.openstreetmap.org/api'
-        self.base_url = self.base_url_no_version + '/0.6'
-
         if oauth_token:
-            self.auth = OAuth2Auth(oauth_token)
+            auth = OAuth2Auth(oauth_token)
         elif username and password:
-            self.auth = (username, password)
+            auth = (username, password)
         else:
             raise Exception('Authorization is required')
 
-    def get_changeset_max_size(self) -> int:
-        with get_http_client() as c:
-            resp = c.get(f'{self.base_url_no_version}/capabilities')
-            resp.raise_for_status()
+        self._http = get_http_client('https://api.openstreetmap.org/api', auth=auth)
 
-        caps = xmltodict.parse(resp.text)
+    def get_changeset_max_size(self) -> int:
+        r = self._http.get('/capabilities')
+        r.raise_for_status()
+
+        caps = xmltodict.parse(r.text)
 
         return int(caps['osm']['api']['changesets']['@maximum_elements'])
 
-    # def get_element(self, element_type: str, element_id: str, version: str | int) -> dict:
-    #     with get_http_client() as c:
-    #         resp = c.get(f'{self.base_url}/{element_type}/{element_id}/{version}')
-    #         resp.raise_for_status()
-    #
-    #     return xmltodict.parse(resp.text)['osm'][element_type]
-
     def get_authorized_user(self) -> dict:
-        with get_http_client(auth=self.auth) as c:
-            resp = c.get(f'{self.base_url}/user/details.json')
-            resp.raise_for_status()
+        r = self._http.get('/0.6/user/details.json')
+        r.raise_for_status()
 
-        return resp.json()['user']
+        return r.json()['user']
 
     def get_changeset(self, changeset_id: int) -> dict:
-        with get_http_client() as c:
-            info_resp = c.get(f'{self.base_url}/changeset/{changeset_id}')
-            info_resp.raise_for_status()
+        info_resp = self._http.get(f'/0.6/changeset/{changeset_id}')
+        info_resp.raise_for_status()
 
-            diff_resp = c.get(f'{self.base_url}/changeset/{changeset_id}/download')
-            diff_resp.raise_for_status()
+        diff_resp = self._http.get(f'/0.6/changeset/{changeset_id}/download')
+        diff_resp.raise_for_status()
 
         info = xmltodict.parse(info_resp.text)
         diff = xmltodict.parse(diff_resp.text)
@@ -198,39 +188,43 @@ class OsmApi:
                 print(f'🚧 Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
                 extra_tags[key] = value[:252] + '…'
 
-        with get_http_client(auth=self.auth, headers={'Content-Type': 'text/xml; charset=utf-8'}) as c:
-            changeset = {'osm': {'changeset': {'tag': [
-                {'@k': k, '@v': v} for k, v in extra_tags.items()
-            ]}}}
-            changeset_xml = xmltodict.unparse(changeset).encode('utf-8')
+        changeset = {'osm': {'changeset': {'tag': [
+            {
+                '@k': k,
+                '@v': v
+            } for k, v in extra_tags.items()
+        ]}}}
+        changeset_xml = xmltodict.unparse(changeset)
 
-            cs_resp = c.put(f'{self.base_url}/changeset/create', data=changeset_xml)
-            cs_resp.raise_for_status()
-            changeset_id = cs_resp.text
+        r = self._http.put('/0.6/changeset/create',
+                           content=changeset_xml,
+                           headers=XML_HEADERS)
+        r.raise_for_status()
 
-            osm_change = build_osm_change(diff, changeset_id)
-            osm_change_xml = xmltodict.unparse(osm_change).encode('utf-8')
+        changeset_id = r.text
+        osm_change = build_osm_change(diff, changeset_id)
+        osm_change_xml = xmltodict.unparse(osm_change)
 
-            diff_resp = c.post(f'{self.base_url}/changeset/{changeset_id}/upload', data=osm_change_xml, timeout=150)
+        upload_resp = self._http.post(f'/0.6/changeset/{changeset_id}/upload',
+                                      content=osm_change_xml,
+                                      headers=XML_HEADERS,
+                                      timeout=150)
 
-            cs_resp = c.put(f'{self.base_url}/changeset/{changeset_id}/close')
-            cs_resp.raise_for_status()
+        r = self._http.put(f'/0.6/changeset/{changeset_id}/close')
+        r.raise_for_status()
 
-        if diff_resp.status_code == 409:
-            print(f'🆚 Failed to upload the changes ({diff_resp.status_code})')
-            print(f'🆚 {diff_resp.text}')
+        if upload_resp.status_code == 409:
+            print(f'🆚 Failed to upload the changes ({upload_resp.status_code})')
+            print(f'🆚 {upload_resp.text}')
             print(f'🆚 The Overpass data is outdated, please try again shortly')
             return None
 
-        if diff_resp.status_code != 200:
-            print(f'😵 Failed to upload the changes ({diff_resp.status_code})')
-            print(f'😵 {diff_resp.text}')
+        if upload_resp.status_code != 200:
+            print(f'😵 Failed to upload the changes ({upload_resp.status_code})')
+            print(f'😵 {upload_resp.text}')
             return None
 
         return changeset_id
 
-    def add_comment_to_changeset(self, changeset_id: int, comment: str) -> None:
-        with get_http_client(auth=self.auth) as c:
-            c.post(f'{self.base_url}/changeset/{changeset_id}/comment', data={
-                'text': comment
-            })
+    def post_discussion_comment(self, changeset_id: int, comment: str) -> None:
+        self._http.post(f'/0.6/changeset/{changeset_id}/comment', data={'text': comment})

@@ -5,8 +5,9 @@ verify_ssl = true
 
 [packages]
 authlib = "*"
+brotlipy = "*"
 fire = "*"
-requests = "*"
+httpx = "*"
 xmltodict = "*"
 
 [dev-packages]

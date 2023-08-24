@@ -1,8 +1,7 @@
-import functools
 from collections import defaultdict
 from typing import Any
 
-from requests import Session
+from httpx import Client
 
 from config import USER_AGENT
 from diff_match_patch import diff_match_patch
@@ -81,13 +80,14 @@ def dmp(old: list, new: list, current: list) -> list | None:
     return result
 
 
-def get_http_client(*, auth: Any | None = None, headers: dict | None = None) -> Session:
+def get_http_client(base_url: str = '', *, auth: Any | None = None, headers: dict | None = None) -> Client:
     if not headers:
         headers = {}
 
-    s = Session()
-    s.auth = auth
-    s.headers.update({'User-Agent': USER_AGENT} | headers)
-    s.request = functools.partial(s.request, timeout=30)
-
-    return s
+    return Client(
+        base_url=base_url,
+        auth=auth,
+        headers={'User-Agent': USER_AGENT} | headers,
+        timeout=30,
+        follow_redirects=True,
+    )
