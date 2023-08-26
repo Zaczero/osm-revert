@@ -287,8 +287,8 @@ def main(changeset_ids: list | str | int, comment: str,
 
                 for i, changeset_id in enumerate(d_changeset_ids, 1):
                     changeset_id = int(changeset_id)
-                    osm.post_discussion_comment(changeset_id, discussion)
-                    print(f'[{i}/{len(d_changeset_ids)}] Changeset {changeset_id}: OK')
+                    status = osm.post_discussion_comment(changeset_id, discussion)
+                    print(f'[{i}/{len(d_changeset_ids)}] Changeset {changeset_id}: {status}')
 
             print_warn_elements(inverter.warnings)
             print(f'✅ Success')

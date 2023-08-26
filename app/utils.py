@@ -1,24 +1,53 @@
+import functools
+import random
+import time
 from collections import defaultdict
+from datetime import timedelta
+from math import inf
 from typing import Any
 
 from httpx import Client
 
 from config import USER_AGENT
-from diff_match_patch import diff_match_patch
 
 _RUN_COUNTER = defaultdict(int)
 
 
 def limit_execution_count(name: str, limit: int) -> bool:
-    if _RUN_COUNTER[name] >= limit:
-        return True
-
     _RUN_COUNTER[name] += 1
 
-    if _RUN_COUNTER[name] >= limit:
+    if _RUN_COUNTER[name] == limit + 1:
         print(f'🔇 Suppressing further messages for {name!r}')
 
-    return False
+    return _RUN_COUNTER[name] > limit
+
+
+def retry_exponential(timeout: timedelta | float | None = 10, *, start: float = 1):
+    if timeout is None:
+        timeout_seconds = inf
+    elif isinstance(timeout, timedelta):
+        timeout_seconds = timeout.total_seconds()
+    else:
+        timeout_seconds = timeout
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            ts = time.perf_counter()
+            sleep = start
+
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if (time.perf_counter() + sleep) - ts > timeout_seconds:
+                        print(f'[⛔] {func.__name__} failed')
+                        raise e
+                    time.sleep(sleep)
+                    sleep = min(sleep * (1 + random.random()), 1800)  # max 30 minutes
+
+        return wrapper
+    return decorator
 
 
 def ensure_iterable(item) -> list | tuple:
@@ -29,55 +58,6 @@ def ensure_iterable(item) -> list | tuple:
         return item
 
     return [item]
-
-
-def dmp_retry_reverse(old: list, new: list, current: list) -> list | None:
-    if result := dmp(old, new, current):
-        return result
-
-    print('[DMP] Retrying in reverse')
-    return dmp(old, new[::-1], current)
-
-
-def dmp(old: list, new: list, current: list) -> list | None:
-    old_lines = '\n'.join(old) + '\n'
-    new_lines = '\n'.join(new) + '\n'
-    current_lines = '\n'.join(current) + '\n'
-
-    d = diff_match_patch()
-    d.Match_Threshold = 1
-    d.Patch_DeleteThreshold = 0
-
-    (old_text, new_text, current_text, line_arr) = d.diff_linesToChars(old_lines, new_lines, current_lines)
-    diff = d.diff_main(new_text, current_text, checklines=False)
-    patch = d.patch_make(diff)
-
-    result_text, result_bools = d.patch_apply(patch, old_text)
-
-    # some patches failed to apply
-    if not all(result_bools):
-        print('[DMP] Patch failed (not_all)')
-        return None
-
-    result_lines = d.diff_charsToLinesText(result_text, line_arr)
-    result = result_lines.strip().split('\n')
-
-    # result must not contain duplicates
-    if len(result) != len(set(result)):
-        print('[DMP] Patch failed (duplicate)')
-        return None
-
-    # result must not create any new elements
-    if set(result) - set(old).union(current):
-        print('[DMP] Patch failed (create_new)')
-        return None
-
-    # result must not delete any common elements
-    if set(old).intersection(current) - set(result):
-        print('[DMP] Patch failed (common_delete)')
-        return None
-
-    return result
 
 
 def get_http_client(base_url: str = '', *, auth: Any | None = None, headers: dict | None = None) -> Client:

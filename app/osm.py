@@ -3,7 +3,7 @@ from authlib.integrations.httpx_client import OAuth2Auth
 
 from config import (CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX,
                     XML_HEADERS)
-from utils import ensure_iterable, get_http_client
+from utils import ensure_iterable, get_http_client, retry_exponential
 
 
 def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
@@ -108,6 +108,7 @@ class OsmApi:
 
         self._http = get_http_client('https://api.openstreetmap.org/api', auth=auth)
 
+    @retry_exponential()
     def get_changeset_max_size(self) -> int:
         r = self._http.get('/capabilities')
         r.raise_for_status()
@@ -116,12 +117,14 @@ class OsmApi:
 
         return int(caps['osm']['api']['changesets']['@maximum_elements'])
 
+    @retry_exponential()
     def get_authorized_user(self) -> dict:
         r = self._http.get('/0.6/user/details.json')
         r.raise_for_status()
 
         return r.json()['user']
 
+    @retry_exponential()
     def get_changeset(self, changeset_id: int) -> dict:
         info_resp = self._http.get(f'/0.6/changeset/{changeset_id}')
         info_resp.raise_for_status()
@@ -226,5 +229,13 @@ class OsmApi:
 
         return changeset_id
 
-    def post_discussion_comment(self, changeset_id: int, comment: str) -> None:
-        self._http.post(f'/0.6/changeset/{changeset_id}/comment', data={'text': comment})
+    def post_discussion_comment(self, changeset_id: int, comment: str) -> str:
+        r = self._http.post(f'/0.6/changeset/{changeset_id}/comment', data={'text': comment})
+
+        if r.is_success:
+            return 'OK'
+
+        if r.status_code in (429,):
+            return 'RATE_LIMITED'
+
+        return str(r.status_code)

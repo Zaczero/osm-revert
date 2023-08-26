@@ -9,7 +9,7 @@ from httpx import Client
 
 from config import REVERT_TO_DATE
 from diff_entry import DiffEntry
-from utils import ensure_iterable, get_http_client
+from utils import ensure_iterable, get_http_client, retry_exponential
 
 
 def parse_timestamp(timestamp: str) -> int:
@@ -145,6 +145,7 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
            f'out meta;'
 
 
+@retry_exponential()
 def fetch_overpass(http: Client, data: str, *, check_bad_request: bool = False) -> dict | str:
     response = http.post('', data={'data': data}, timeout=300)
 
