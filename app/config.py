@@ -29,3 +29,4 @@ NO_TAG_PREFIX = {'comment', 'changesets_count', 'created_by', 'website'}
 XML_HEADERS = {'Content-Type': 'text/xml; charset=utf-8'}
 
 REVERT_TO_DATE = os.getenv('REVERT_TO_DATE', None)
+ALLOW_MODERATOR_REVERTS = os.getenv('ALLOW_MODERATOR_REVERTS', '0').lower() in ('1', 'true', 'yes')

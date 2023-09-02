@@ -4,7 +4,7 @@ import time
 from collections import defaultdict
 from datetime import timedelta
 from math import inf
-from typing import Any
+from typing import Any, Sequence
 
 from httpx import Client
 
@@ -71,3 +71,7 @@ def get_http_client(base_url: str = '', *, auth: Any | None = None, headers: dic
         timeout=30,
         follow_redirects=True,
     )
+
+
+def is_osm_moderator(roles: Sequence[str]) -> bool:
+    return any(check in roles for check in ('moderator', 'administrator'))

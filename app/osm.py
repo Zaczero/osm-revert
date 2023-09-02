@@ -1,3 +1,5 @@
+from functools import cache
+
 import xmltodict
 from authlib.integrations.httpx_client import OAuth2Auth
 
@@ -120,6 +122,19 @@ class OsmApi:
     @retry_exponential()
     def get_authorized_user(self) -> dict:
         r = self._http.get('/0.6/user/details.json')
+        r.raise_for_status()
+
+        return r.json()['user']
+
+    @cache
+    @retry_exponential()
+    def get_user(self, uid: str | int) -> dict | None:
+        r = self._http.get(f'/0.6/user/{uid}.json')
+
+        # allow for not found users
+        if r.status_code == 404:
+            return None
+
         r.raise_for_status()
 
         return r.json()['user']

@@ -7,12 +7,13 @@ from typing import Iterable
 import fire
 import xmltodict
 
-from config import CHANGESETS_LIMIT_CONFIG, CREATED_BY, WEBSITE
+from config import (ALLOW_MODERATOR_REVERTS, CHANGESETS_LIMIT_CONFIG,
+                    CREATED_BY, WEBSITE)
 from diff_entry import DiffEntry
 from invert import Inverter
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
-from utils import ensure_iterable
+from utils import ensure_iterable, is_osm_moderator
 
 
 def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, dict[str, set[str]]]:
@@ -114,6 +115,7 @@ def main_timer(func):
     return wrapper
 
 
+# TODO: improved revert to date
 # TODO: filter does not include nodes if way was unmodified
 # https://overpass-api.de/achavi/?changeset=131696060
 # https://www.openstreetmap.org/way/357241890/history
@@ -155,7 +157,7 @@ def main(changeset_ids: list | str | int, comment: str,
     user = osm.get_authorized_user()
 
     user_edits = user['changesets']['count']
-    user_is_moderator = 'moderator' in user['roles'] or 'administrator' in user['roles']
+    user_is_moderator = is_osm_moderator(user['roles'])
 
     print(f'👤 Welcome, {user["display_name"]}{" 🔷" if user_is_moderator else ""}!')
 
@@ -184,6 +186,13 @@ def main(changeset_ids: list | str | int, comment: str,
 
         print(f'[1/?] OpenStreetMap …')
         changeset = osm.get_changeset(changeset_id)
+
+        if not user_is_moderator and not ALLOW_MODERATOR_REVERTS:
+            changeset_user = osm.get_user(changeset['osm']['changeset']['@uid'])
+            if changeset_user and is_osm_moderator(changeset_user['roles']):
+                print(f'🛑 Moderators changesets cannot be reverted')
+                return -1
+
         changeset_size = sum(len(v) for p in changeset['partition'].values() for v in p.values())
         partition_count = len(changeset['partition'])
         steps = partition_count + 1
