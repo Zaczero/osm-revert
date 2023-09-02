@@ -132,7 +132,7 @@ class OsmApi:
         r = self._http.get(f'/0.6/user/{uid}.json')
 
         # allow for not found users
-        if r.status_code == 404:
+        if r.status_code in (404, 410):
             return None
 
         r.raise_for_status()
