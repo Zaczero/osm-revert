@@ -7,7 +7,7 @@ from typing import Iterable
 import fire
 import xmltodict
 
-from config import (ALLOW_MODERATOR_REVERTS, CHANGESETS_LIMIT_CONFIG,
+from config import (CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT,
                     CREATED_BY, WEBSITE)
 from diff_entry import DiffEntry
 from invert import Inverter
@@ -187,7 +187,7 @@ def main(changeset_ids: list | str | int, comment: str,
         print(f'[1/?] OpenStreetMap …')
         changeset = osm.get_changeset(changeset_id)
 
-        if not user_is_moderator and not ALLOW_MODERATOR_REVERTS:
+        if user_edits < CHANGESETS_LIMIT_MODERATOR_REVERT and not user_is_moderator:
             changeset_user = osm.get_user(changeset['osm']['changeset']['@uid'])
             if changeset_user and is_osm_moderator(changeset_user['roles']):
                 print(f'🛑 Moderators changesets cannot be reverted')
