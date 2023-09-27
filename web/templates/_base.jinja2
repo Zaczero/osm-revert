@@ -14,14 +14,8 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
-<body class="container my-3">
-    <div class="card shadow-sm mb-3 col-lg-8 offset-lg-2">
-        <div class="card-body">
-            {% block body %}{% endblock %}
-        </div>
-    </div>
-
-    <footer class="text-center d-md-flex justify-content-center align-items-center">
+<body class="container mt-3 mb-4">
+    <nav class="text-center d-md-flex justify-content-center align-items-center mb-2">
         <div class="mb-2">📃 <a
                 href="https://resultmaps.neis-one.org/osm-suspicious?country=-1&hours=24&tsearch=osm-revert&mappingdays=-1&anyobj=t"
                 target="_blank">Recent reverts</a></div>
@@ -36,7 +30,13 @@
                     src="https://shields.monicz.dev/github/stars/Zaczero/osm-revert?style=social">
             </a>
         </div>
-    </footer>
+    </nav>
+
+    <div class="card shadow-sm col-lg-8 offset-lg-2">
+        <div class="card-body">
+            {% block body %}{% endblock %}
+        </div>
+    </div>
 </body>
 
 </html>

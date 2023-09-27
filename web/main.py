@@ -157,6 +157,7 @@ async def main(ws: WebSocket, args: dict) -> str:
     upload = args['upload']
     discussion = args['discussion']
     discussion_target = args['discussion_target']
+    fix_parents = args['fix_parents']
 
     if not changesets:
         return '❗️ No changesets were provided'
@@ -191,6 +192,7 @@ async def main(ws: WebSocket, args: dict) -> str:
         '--oauth_token', quote(json.dumps(token)),
         '--discussion', quote(discussion),
         '--discussion_target', quote(discussion_target),
+        '--fix_parents', str(fix_parents),
         *extra_args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT)

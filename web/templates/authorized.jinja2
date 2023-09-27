@@ -45,7 +45,7 @@
         maxlength="2000"></textarea>
 </label>
 
-<div class="text-end small mb-2">
+<div class="text-end small">
     <div class="form-check form-check-inline">
         <input class="form-check-input" id="dt-a" type="radio" name="discussion_target" value="all" checked>
         <label class="form-check-label" for="dt-a">All changesets</label>
@@ -57,6 +57,25 @@
     <div class="form-check form-check-inline">
         <input class="form-check-input" id="dt-o" type="radio" name="discussion_target" value="oldest">
         <label class="form-check-label" for="dt-o">Oldest only</label>
+    </div>
+</div>
+
+<div class="w-100 mb-2">
+    Resolve parent conflicts:
+    <abbr title="Parent conflicts occur when other changesets make dependencies on newly created elements">(?)</abbr>
+    <div class="small mt-1">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="fp-t" type="radio" name="fix_parents" value="True" checked>
+            <label class="form-check-label" for="fp-t">
+                Forcefully remove conflicting elements
+            </label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="fp-f" type="radio" name="fix_parents" value="False">
+            <label class="form-check-label" for="fp-f">
+                Skip conflicting elements (assume they were fixed)
+            </label>
+        </div>
     </div>
 </div>
 
@@ -171,6 +190,7 @@
             upload: upload,
             discussion: discussion.value,
             discussion_target: document.querySelector('input[name="discussion_target"]:checked').value,
+            fix_parents: document.querySelector('input[name="fix_parents"]:checked').value === 'True',
         }))
     }
 
