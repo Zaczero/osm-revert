@@ -134,7 +134,7 @@ class Inverter:
                     elif element_type == 'relation':
                         self._invert_relation_members(old, new, current)
                     else:
-                        raise
+                        raise NotImplementedError(f'Unknown element type: {element_type}')
 
                 if current != current_original:
                     self._current_map[element_type][element_id] = current

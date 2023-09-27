@@ -130,7 +130,7 @@ def main(changeset_ids: list | str | int, comment: str,
          oauth_token: str = None,
          discussion: str = None, discussion_target: str = None,
          osc_file: str = None, print_osc: bool = None,
-         query_filter: str = '', only_tags: list | str | int = '') -> int:
+         query_filter: str = '', only_tags: list | str | int = '', fix_parents: bool = True) -> int:
     changeset_ids = tuple(sorted(set(
         str(cs_id).strip()
         for cs_id in ensure_iterable(changeset_ids)
@@ -226,10 +226,13 @@ def main(changeset_ids: list | str | int, comment: str,
 
     inverter = Inverter(only_tags)
     invert = inverter.invert_diff(merged_diffs)
-    parents = overpass.update_parents(invert)
+    parents_counter = overpass.update_parents(invert, fix_parents=fix_parents)
 
-    if parents:
-        print(f'🛠️ Fixing {parents} parent{"s" if parents > 1 else ""}')
+    if parents_counter:
+        if fix_parents:
+            print(f'🛠️ Fixing {parents_counter} parent{"s" if parents_counter > 1 else ""}')
+        else:
+            print(f'🛠️ Skipping {parents_counter} element{"s" if parents_counter > 1 else ""} (not orphaned)')
 
     invert_size = sum(len(elements) for elements in invert.values())
 
@@ -264,6 +267,9 @@ def main(changeset_ids: list | str | int, comment: str,
 
             if len(changeset_ids) > 1:
                 print(f'🐘 Hint: Try reducing the amount of changesets to revert at once')
+
+            if fix_parents:
+                print(f'🐘 Hint: Try disabling parent fixing')
 
             return -1
 

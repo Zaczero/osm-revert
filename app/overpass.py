@@ -195,7 +195,7 @@ def parse_action(action: dict) -> tuple[str, dict | None, dict]:
         element_type, element_old = next(iter(action['old'].items()))
         element_new = next(iter(action['new'].values()))
     else:
-        raise
+        raise NotImplementedError(f'Unknown action type: {action["@type"]}')
 
     return element_type, element_old, element_new
 
@@ -361,84 +361,148 @@ class Overpass:
 
         return result
 
-    def update_parents(self, invert: dict) -> int:
-        invert_map = {
-            'node': {e['@id']: e for e in invert['node']},
-            'way': {e['@id']: e for e in invert['way']},
-            'relation': {e['@id']: e for e in invert['relation']}
+    def update_parents(self, invert: dict, fix_parents: bool) -> int:
+        counter = 0
+
+        internal_ids = {
+            'node': {e['@id'] for e in invert['node']},
+            'way': {e['@id'] for e in invert['way']},
+            'relation': {e['@id'] for e in invert['relation']}
         }
 
-        deleting_ids = {
-            'node': {e['@id'] for e in invert['node'] if e['@visible'] == 'false'},
-            'way': {e['@id'] for e in invert['way'] if e['@visible'] == 'false'},
-            'relation': {e['@id'] for e in invert['relation'] if e['@visible'] == 'false'}
-        }
+        for _ in range(10):
+            deleting_ids = {
+                'node': {e['@id'] for e in invert['node'] if e['@visible'] == 'false'},
+                'way': {e['@id'] for e in invert['way'] if e['@visible'] == 'false'},
+                'relation': {e['@id'] for e in invert['relation'] if e['@visible'] == 'false'}
+            }
 
-        if sum(len(el) for el in deleting_ids.values()) == 0:
-            return 0
+            if not any(ids for ids in deleting_ids.values()):
+                return counter
 
-        # TODO: optimize bbox by merging previous bboxes
-        query_by_ids = build_query_parents_by_ids(deleting_ids)
+            # TODO: optimize bbox by merging previous bboxes
+            # TODO: optimize processing by not processing the same deleted ids multiple times
+            query_by_ids = build_query_parents_by_ids(deleting_ids)
 
-        parents_query = f'[timeout:180];{query_by_ids}'
-        data = fetch_overpass(self._https[0], parents_query)
-        assert isinstance(data, dict)
+            parents_query = f'[timeout:180];{query_by_ids}'
+            data = fetch_overpass(self._https[0], parents_query)
+            assert isinstance(data, dict)
 
-        parents = {
-            'node': ensure_iterable(data['osm'].get('node', [])),
-            'way': ensure_iterable(data['osm'].get('way', [])),
-            'relation': ensure_iterable(data['osm'].get('relation', [])),
-        }
+            invert_map = {
+                'node': {e['@id']: e for e in invert['node']},
+                'way': {e['@id']: e for e in invert['way']},
+                'relation': {e['@id']: e for e in invert['relation']}
+            }
 
-        fixed_parents = 0
+            parents = {
+                'node': ensure_iterable(data['osm'].get('node', [])),
+                'way': ensure_iterable(data['osm'].get('way', [])),
+                'relation': ensure_iterable(data['osm'].get('relation', [])),
+            }
 
-        for element_type, elements in parents.items():
-            for element in elements:
-                assert isinstance(element, dict)
+            changed = False
 
-                # use current element if present
-                element_orig = invert_map[element_type].get(element['@id'], element)
-                element = deepcopy(element_orig)
+            for element_type, elements in parents.items():
+                for element in elements:
+                    assert isinstance(element, dict)
 
-                # TODO: ensure default element tags
-                if element.get('@visible', 'true') == 'false':
-                    continue
+                    # skip internal elements when not fixing parents
+                    if not fix_parents and element['@id'] in internal_ids[element_type]:
+                        continue
 
-                if element_type == 'way':
-                    element['nd'] = [
-                        n for n in ensure_iterable(element.get('nd', []))
-                        if n['@ref'] not in deleting_ids['node']
-                    ]
+                    # use current element if present
+                    element = deepcopy(invert_map[element_type].get(element['@id'], element))
 
-                    # delete single node ways
-                    if len(element['nd']) == 1:
-                        element['nd'] = []
+                    # TODO: ensure default element tags
+                    # skip if parent is already deleted
+                    if element.get('@visible', 'true') == 'false':
+                        continue
 
-                    if not element['nd']:
-                        element['@visible'] = 'false'
-                elif element_type == 'relation':
-                    element['member'] = [
-                        m for m in ensure_iterable(element.get('member', []))
-                        if m['@ref'] not in deleting_ids[m['@type']]
-                    ]
+                    deleting_child_ids = {
+                        'node': set(),
+                        'way': set(),
+                        'relation': set()
+                    }
 
-                    # TODO: this could be optimized, include id in deleting ids and recurse
-                    if not element['member']:
-                        element['@visible'] = 'false'
-                else:
-                    raise
+                    if element_type == 'way':
+                        element['nd'] = ensure_iterable(element.get('nd', []))
+                        new_nds = []
 
-                if element == element_orig:
-                    continue
+                        for nd in element['nd']:
+                            if nd['@ref'] in deleting_ids['node']:
+                                deleting_child_ids['node'].add(nd['@ref'])
+                            else:
+                                new_nds.append(nd)
 
-                ensure_visible_tag(element)
+                        element['nd'] = new_nds
 
-                if element['@id'] in invert_map[element_type]:
-                    idx = next(i for i, v in enumerate(invert[element_type]) if v['@id'] == element['@id'])
-                    invert[element_type][idx] = element
-                else:
-                    invert[element_type].append(element)
+                        # delete single node ways
+                        if len(element['nd']) == 1:
+                            element['nd'] = []
 
-                fixed_parents += 1
+                        if not element['nd']:
+                            element['@visible'] = 'false'
 
-        return fixed_parents
+                    elif element_type == 'relation':
+                        element['member'] = ensure_iterable(element.get('member', []))
+                        new_members = []
+
+                        for m in element['member']:
+                            if m['@ref'] in deleting_ids[m['@type']]:
+                                deleting_child_ids[m['@type']].add(m['@ref'])
+                            else:
+                                new_members.append(m)
+
+                        element['member'] = new_members
+
+                        if not element['member']:
+                            element['@visible'] = 'false'
+
+                    else:
+                        raise NotImplementedError(f'Unknown element type: {element_type}')
+
+                    # skip if nothing changed
+                    if not any(ids for ids in deleting_child_ids.values()):
+                        continue
+
+                    changed = True
+
+                    if fix_parents:
+                        ensure_visible_tag(element)
+
+                        if element['@id'] in invert_map[element_type]:
+                            idx = next(i for i, v in enumerate(invert[element_type]) if v['@id'] == element['@id'])
+                            invert[element_type][idx] = element
+                        else:
+                            invert[element_type].append(element)
+                            counter += 1
+
+                    else:
+                        for key, ids in deleting_child_ids.items():
+                            invert_key_idxs = []
+
+                            for id_ in ids:
+                                idx = next((i for i, v in enumerate(invert[key]) if v['@id'] == id_), None)
+                                if idx is not None:
+                                    invert_key_idxs.append(idx)
+                                    internal_ids[key].remove(id_)
+                                    counter += 1
+
+                            if not invert_key_idxs:
+                                continue
+
+                            invert_key_idxs.sort()
+
+                            invert[key] = list(chain(
+                                invert[key][:invert_key_idxs[0]],
+                                *(
+                                    invert[key][l+1:r]
+                                    for l, r in zip(invert_key_idxs, invert_key_idxs[1:])
+                                ),
+                                invert[key][invert_key_idxs[-1]+1:]
+                            ))
+
+            if not changed:
+                return counter
+
+        raise RecursionError('Parents recursion limit reached')
