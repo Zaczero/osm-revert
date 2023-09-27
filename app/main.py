@@ -237,16 +237,6 @@ def main(changeset_ids: list | str | int, comment: str,
         print('✅ Nothing to revert')
         return 0
 
-    changeset_max_size = osm.get_changeset_max_size()
-
-    if invert_size > changeset_max_size:
-        print(f'🐘 Revert is too big: {invert_size} > {changeset_max_size}')
-
-        if len(changeset_ids) > 1:
-            print(f'🐘 Hint: Try reducing the amount of changesets to revert at once')
-
-        return -1
-
     if osc_file or print_osc:
         print(f'💾 Saving {invert_size} change{"s" if invert_size > 1 else ""} to .osc')
 
@@ -267,6 +257,16 @@ def main(changeset_ids: list | str | int, comment: str,
         return 0
 
     else:
+        changeset_max_size = osm.get_changeset_max_size()
+
+        if invert_size > changeset_max_size:
+            print(f'🐘 Revert is too big: {invert_size} > {changeset_max_size}')
+
+            if len(changeset_ids) > 1:
+                print(f'🐘 Hint: Try reducing the amount of changesets to revert at once')
+
+            return -1
+
         print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
 
         extra_args = {
