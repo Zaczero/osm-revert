@@ -334,15 +334,18 @@ class Overpass:
         }
 
         for element_type, element_old, element_new in changeset_edits:
-            if element_new['@changeset'] != changeset_id:
-                return '❓ Overpass data is corrupted (bad_changeset)'
+            # TODO: skip checks by time
+            # NOTE: this ma happen legitimately when there are multiple changesets at the same time
+            # if element_new['@changeset'] != changeset_id:
+            #     return '❓ Overpass data is corrupted (bad_changeset)'
 
             # NOTE: this may happen legitimately when there are multiple changesets at the same time
             # if element_old and int(element_new['@version']) - int(element_old['@version']) != 1:
             #     return '❓ Overpass data is corrupted (bad_version)'
 
-            if not element_old and int(element_new['@version']) == 2 and not REVERT_TO_DATE:
-                return '❓ Overpass data is corrupted (impossible_create)'
+            # NOTE: this ma happen legitimately when there are multiple changesets at the same time
+            # if not element_old and int(element_new['@version']) == 2 and not REVERT_TO_DATE:
+            #     return '❓ Overpass data is corrupted (impossible_create)'
 
             timestamp = parse_timestamp(element_new['@timestamp'])
             element_id = element_new['@id']
