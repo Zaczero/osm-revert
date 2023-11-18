@@ -21,7 +21,7 @@ with pkgs; let
   };
 in
 dockerTools.buildLayeredImage {
-  name = "docker.monicz.pl/osm-revert-ui";
+  name = "docker.monicz.dev/osm-revert-ui";
   tag = "latest";
   maxLayers = 10;
 
