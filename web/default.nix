@@ -1,8 +1,12 @@
-{ pkgs ? import <nixpkgs> { } }:
+{ pkgsnix ? import ./pkgs.nix
+, pkgs ? pkgsnix.pkgs
+, unstable ? pkgsnix.unstable
+}:
 
 with pkgs; let
   shell = import ./shell.nix {
     inherit pkgs;
+    inherit unstable;
     isDocker = true;
   };
 
