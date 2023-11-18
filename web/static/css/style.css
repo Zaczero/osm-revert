@@ -10,3 +10,10 @@ abbr {
     color: #e00;
     font-weight: bold;
 }
+
+.char-counter {
+    display: none;
+    font-size: .8em;
+    margin-top: .25em;
+    text-align: end;
+}
