@@ -7,11 +7,11 @@ verify_ssl = true
 authlib = "*"
 brotlipy = "*"
 fire = "*"
+h2 = "*"
 httpx = "*"
 xmltodict = "*"
 
 [dev-packages]
-autopep8 = "*"
 
 [requires]
 python_version = "3.11"

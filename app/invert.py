@@ -12,44 +12,30 @@ def _set_visible_original(target: dict | None, current: dict):
 
 
 class Inverter:
-    # we need this to make reverting multiple changesets at a time possible
-    _current_map = {
-        'node': {},
-        'way': {},
-        'relation': {}
-    }
-
-    # store latest versions of elements (for osmChange upload)
-    _version_map = {
-        'node': {},
-        'way': {},
-        'relation': {}
-    }
-
-    statistics: dict = {
-        'fix:node': 0,
-        'fix:way': 0,
-        'fix:relation': 0,
-
-        'dmp:way': 0,
-        'dmp:way:id': [],
-        'dmp:relation': 0,
-        'dmp:relation:id': [],
-
-        'dmp:fail:way': 0,
-        'dmp:fail:way:id': [],
-        'dmp:fail:relation': 0,
-        'dmp:fail:relation:id': [],
-    }
-
-    warnings: dict[str, list[str]] = {
-        'node': [],
-        'way': [],
-        'relation': []
-    }
-
     def __init__(self, only_tags: frozenset[str]) -> None:
         self._only_tags = only_tags
+
+        # we need this to make reverting multiple changesets at a time possible
+        self._current_map = {'node': {}, 'way': {}, 'relation': {}}
+
+        # store latest versions of elements (for osmChange upload)
+        self._version_map = {'node': {}, 'way': {}, 'relation': {}}
+
+        self.statistics: dict = {
+            'fix:node': 0,
+            'fix:way': 0,
+            'fix:relation': 0,
+            'dmp:way': 0,
+            'dmp:way:id': [],
+            'dmp:relation': 0,
+            'dmp:relation:id': [],
+            'dmp:fail:way': 0,
+            'dmp:fail:way:id': [],
+            'dmp:fail:relation': 0,
+            'dmp:fail:relation:id': [],
+        }
+
+        self.warnings: dict[str, list[str]] = {'node': [], 'way': [], 'relation': []}
 
     def invert_diff(self, diff: dict[str, list[DiffEntry]]) -> dict:
         for element_type, elements in diff.items():
@@ -73,8 +59,7 @@ class Inverter:
                 self._invert_element(element_type, element_id, old, new, current)
 
         result = {
-            element_type: list(element_id_map.values())
-            for element_type, element_id_map in self._current_map.items()
+            element_type: list(element_id_map.values()) for element_type, element_id_map in self._current_map.items()
         }
 
         for element_type, elements in result.items():
@@ -109,7 +94,6 @@ class Inverter:
 
         # modify
         elif old['@visible'] == 'true' and new['@visible'] == 'true':
-
             # simple revert; only_tags mode requires advanced revert
             if current['@version'] == new['@version'] and not self._only_tags:
                 self._current_map[element_type][element_id] = old
@@ -251,14 +235,13 @@ class Inverter:
 
         if patch := dmp_retry_reverse(old_nodes, new_nodes, current_nodes):
             current['nd'] = [json.loads(p) for p in patch]
-            print(f'[DMP][☑️] Patch successful')
+            print('[DMP][☑️] Patch successful')
             self.statistics['dmp:way'] += 1
             self.statistics['dmp:way:id'].append(new['@id'])
         else:
             # absolute delete
-            create_diff = \
-                set(n['@ref'] for n in ensure_iterable(new.get('nd', []))) - \
-                set(n['@ref'] for n in ensure_iterable(old.get('nd', [])))
+            create_diff = {n['@ref'] for n in ensure_iterable(new.get('nd', []))}
+            create_diff = create_diff.difference(n['@ref'] for n in ensure_iterable(old.get('nd', [])))
             current['nd'] = [n for n in ensure_iterable(current.get('nd', [])) if n['@ref'] not in create_diff]
 
             self.statistics['dmp:fail:way'] += 1
@@ -287,14 +270,13 @@ class Inverter:
 
         if patch := dmp_retry_reverse(old_members, new_members, current_members):
             current['member'] = [json.loads(p) for p in patch]
-            print(f'✅ Patch successful')
+            print('✅ Patch successful')
             self.statistics['dmp:relation'] += 1
             self.statistics['dmp:relation:id'].append(new['@id'])
         else:
             # absolute delete
-            create_diff = \
-                set(m['@ref'] for m in ensure_iterable(new.get('member', []))) - \
-                set(m['@ref'] for m in ensure_iterable(old.get('member', [])))
+            create_diff = {m['@ref'] for m in ensure_iterable(new.get('member', []))}
+            create_diff = create_diff.difference(m['@ref'] for m in ensure_iterable(old.get('member', [])))
             current['member'] = [m for m in ensure_iterable(current.get('member', [])) if m['@ref'] not in create_diff]
 
             self.statistics['dmp:fail:relation'] += 1

@@ -2,9 +2,9 @@ import functools
 import random
 import time
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import timedelta
-from math import inf
-from typing import Any, Sequence
+from typing import Any
 
 from httpx import Client
 
@@ -24,7 +24,7 @@ def limit_execution_count(name: str, limit: int) -> bool:
 
 def retry_exponential(timeout: timedelta | float | None = 10, *, start: float = 1):
     if timeout is None:
-        timeout_seconds = inf
+        timeout_seconds = float('inf')
     elif isinstance(timeout, timedelta):
         timeout_seconds = timeout.total_seconds()
     else:
@@ -44,9 +44,10 @@ def retry_exponential(timeout: timedelta | float | None = 10, *, start: float = 
                         print(f'[⛔] {func.__name__} failed')
                         raise e
                     time.sleep(sleep)
-                    sleep = min(sleep * (1 + random.random()), 1800)  # max 30 minutes
+                    sleep = min(sleep * (1 + random.random()), 1800)  # max 30 minutes  # noqa: S311
 
         return wrapper
+
     return decorator
 
 
@@ -54,7 +55,7 @@ def ensure_iterable(item) -> list | tuple:
     if item is None:
         return []
 
-    if isinstance(item, list) or isinstance(item, tuple):
+    if isinstance(item, list | tuple):
         return item
 
     return [item]
@@ -70,6 +71,8 @@ def get_http_client(base_url: str = '', *, auth: Any | None = None, headers: dic
         headers={'User-Agent': USER_AGENT} | headers,
         timeout=30,
         follow_redirects=True,
+        http1=True,
+        http2=True,
     )
 
 

@@ -2,68 +2,16 @@ import json
 import os
 import time
 import traceback
-from typing import Iterable
 
 import fire
 import xmltodict
 
-from config import (CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT,
-                    CREATED_BY, WEBSITE)
+from config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, WEBSITE
 from diff_entry import DiffEntry
 from invert import Inverter
 from osm import OsmApi, build_osm_change
 from overpass import Overpass
 from utils import ensure_iterable, is_osm_moderator
-
-
-def build_element_ids_dict(element_ids: Iterable[str]) -> dict[str, dict[str, set[str]]]:
-    result = {
-        'include': {
-            'node': set(),
-            'way': set(),
-            'relation': set()
-        },
-        'exclude': {
-            'node': set(),
-            'way': set(),
-            'relation': set()
-        }
-    }
-
-    prefixes = {
-        'node': ('nodes', 'node', 'n'),
-        'way': ('ways', 'way', 'w'),
-        'relation': ('relations', 'relation', 'rel', 'r')
-    }
-
-    for element_id in element_ids:
-        element_id = element_id.strip().lower()
-
-        if element_id.startswith('-'):
-            element_result = result['exclude']
-            element_id = element_id.lstrip('-').lstrip()
-        else:
-            element_result = result['include']
-            element_id = element_id.lstrip('+').lstrip()
-
-        for element_type, value in prefixes.items():
-            for prefix in value:
-                if element_id.startswith(prefix):
-                    element_id = element_id[len(prefix):].lstrip(':;.,').lstrip()
-
-                    if not element_id.isnumeric():
-                        raise Exception(f'{element_type.title()} element id must be numeric: {element_id}')
-
-                    element_result[element_type].add(element_id)
-                    break
-            else:
-                continue
-            break
-
-        else:
-            raise Exception(f'Unknown element filter format: {element_id}')
-
-    return result
 
 
 def merge_and_sort_diffs(diffs: list[dict[str, list[DiffEntry]]]) -> dict[str, list[DiffEntry]]:
@@ -120,30 +68,35 @@ def main_timer(func):
 # https://overpass-api.de/achavi/?changeset=131696060
 # https://www.openstreetmap.org/way/357241890/history
 
+
 # TODO: Exit code: None ? (after success and total time)
 # TODO: util function to ensure tags existence and type
 # TODO: slow but very accurate revert (download full history of future edits); overpass-api: timeline
 # TODO: dataclasses
 @main_timer
-def main(changeset_ids: list | str | int, comment: str,
-         username: str = None, password: str = None, *,
-         oauth_token: str = None,
-         discussion: str = None, discussion_target: str = None,
-         osc_file: str = None, print_osc: bool = None,
-         query_filter: str = '', only_tags: list | str | int = '', fix_parents: bool = True) -> int:
-    changeset_ids = tuple(sorted(set(
-        str(cs_id).strip()
-        for cs_id in ensure_iterable(changeset_ids)
-        if cs_id
-    )))
-    assert changeset_ids, 'Missing changeset id'
-    assert all(c.isnumeric() for c in changeset_ids), 'Changeset ids must be numeric'
+def main(
+    changeset_ids: list | str | int,
+    comment: str,
+    username: str | None = None,
+    password: str | None = None,
+    *,
+    oauth_token: str | None = None,
+    discussion: str | None = None,
+    discussion_target: str | None = None,
+    osc_file: str | None = None,
+    print_osc: bool | None = None,
+    query_filter: str = '',
+    only_tags: list | str | int = '',
+    fix_parents: bool = True,
+) -> int:
+    changeset_ids = tuple(sorted({str(cs_id).strip() for cs_id in ensure_iterable(changeset_ids) if cs_id}))
 
-    only_tags = frozenset(
-        str(only_tag).strip()
-        for only_tag in ensure_iterable(only_tags)
-        if only_tag
-    )
+    if not changeset_ids:
+        raise ValueError('Missing changeset id')
+    if not all(c.isnumeric() for c in changeset_ids):
+        raise ValueError('Changeset ids must be numeric')
+
+    only_tags = frozenset(str(only_tag).strip() for only_tag in ensure_iterable(only_tags) if only_tag)
 
     if not username and not password:
         username = os.getenv('OSM_USERNAME')
@@ -165,14 +118,14 @@ def main(changeset_ids: list | str | int, comment: str,
     changesets_limit = max(v for k, v in changesets_limit_config.items() if k <= user_edits)
 
     if changesets_limit == 0:
-        min_edits = min(k for k in changesets_limit_config.keys() if k > 0)
+        min_edits = min(k for k in changesets_limit_config if k > 0)
         print(f'🐥 You need to make at least {min_edits} edits to use this tool')
         return -1
 
     if changesets_limit < len(changeset_ids):
         print(f'🛟 For safety, you can only revert up to {changesets_limit} changesets at a time')
 
-        if limit_increase := min((k for k in changesets_limit_config.keys() if k > user_edits), default=None):
+        if limit_increase := min((k for k in changesets_limit_config if k > user_edits), default=None):
             print(f'🛟 To increase this limit, make at least {limit_increase} edits')
 
         return -1
@@ -184,13 +137,13 @@ def main(changeset_ids: list | str | int, comment: str,
         changeset_id = int(changeset_id)
         print(f'☁️ Downloading changeset {changeset_id}')
 
-        print(f'[1/?] OpenStreetMap …')
+        print('[1/?] OpenStreetMap …')
         changeset = osm.get_changeset(changeset_id)
 
         if user_edits < CHANGESETS_LIMIT_MODERATOR_REVERT and not user_is_moderator:
             changeset_user = osm.get_user(changeset['osm']['changeset']['@uid'])
             if changeset_user and is_osm_moderator(changeset_user['roles']):
-                print(f'🛑 Moderators changesets cannot be reverted')
+                print('🛑 Moderators changesets cannot be reverted')
                 return -1
 
         changeset_size = sum(len(v) for p in changeset['partition'].values() for v in p.values())
@@ -213,8 +166,8 @@ def main(changeset_ids: list | str | int, comment: str,
             diffs.append(diff)
             diff_size = sum(len(el) for el in diff.values())
 
-            assert diff_size <= changeset_size, \
-                f'Diff must not be larger than changeset size: {diff_size=}, {changeset_size=}'
+            if diff_size > changeset_size:
+                raise RuntimeError(f'Diff must not be larger than changeset size: {diff_size=}, {changeset_size=}')
 
             if query_filter:
                 print(f'[{steps}/{steps}] Overpass: {diff_size} element{"s" if diff_size > 1 else ""} (🪣 filtered)')
@@ -256,7 +209,7 @@ def main(changeset_ids: list | str | int, comment: str,
             print('</osc>')
 
         print_warn_elements(inverter.warnings)
-        print(f'✅ Success')
+        print('✅ Success')
         return 0
 
     else:
@@ -266,20 +219,16 @@ def main(changeset_ids: list | str | int, comment: str,
             print(f'🐘 Revert is too big: {invert_size} > {changeset_max_size}')
 
             if len(changeset_ids) > 1:
-                print(f'🐘 Hint: Try reducing the amount of changesets to revert at once')
+                print('🐘 Hint: Try reducing the amount of changesets to revert at once')
 
             if fix_parents:
-                print(f'🐘 Hint: Try disabling parent fixing')
+                print('🐘 Hint: Try disabling parent fixing')
 
             return -1
 
         print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
 
-        extra_args = {
-            'changesets_count': user_edits + 1,
-            'created_by': CREATED_BY,
-            'website': WEBSITE
-        }
+        extra_args = {'changesets_count': user_edits + 1, 'created_by': CREATED_BY, 'website': WEBSITE}
 
         if len(changeset_ids) == 1:
             extra_args['id'] = ';'.join(f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids)
@@ -306,7 +255,7 @@ def main(changeset_ids: list | str | int, comment: str,
                     print(f'[{i}/{len(d_changeset_ids)}] Changeset {changeset_id}: {status}')
 
             print_warn_elements(inverter.warnings)
-            print(f'✅ Success')
+            print('✅ Success')
             print(f'✅ {changeset_url}')
             return 0
 

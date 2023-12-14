@@ -1,10 +1,7 @@
-from functools import cache
-
 import xmltodict
 from authlib.integrations.httpx_client import OAuth2Auth
 
-from config import (CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX,
-                    XML_HEADERS)
+from config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX, XML_HEADERS
 from utils import ensure_iterable, get_http_client, retry_exponential
 
 
@@ -13,10 +10,12 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
 
     # tuples: (relation, set of relation ids it depends on)
     dependency_state = {
-        rel['@id']: (rel, set(
-            m['@ref'] for m in ensure_iterable(rel.get('member', []))
-            if m['@type'] == 'relation'
-        ).intersection(change_ids))
+        rel['@id']: (
+            rel,
+            change_ids.intersection(
+                m['@ref'] for m in ensure_iterable(rel.get('member', [])) if m['@type'] == 'relation'
+            ),
+        )
         for rel in relations
     }
 
@@ -58,19 +57,14 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
 
 
 def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
-    result = {'osmChange': {
-        '@version': 0.6,
-        '@generator': CREATED_BY,
-        'modify': {
-            'node': [],
-            'way': [],
-            'relation': []
-        },
-        'delete': {
-            'relation': [],
-            'way': [],
-            'node': []
-        }}}
+    result = {
+        'osmChange': {
+            '@version': 0.6,
+            '@generator': CREATED_BY,
+            'modify': {'node': [], 'way': [], 'relation': []},
+            'delete': {'relation': [], 'way': [], 'node': []},
+        }
+    }
 
     for element_type, elements in diff.items():
         if element_type == 'relation':
@@ -98,9 +92,7 @@ def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
 
 
 class OsmApi:
-    def __init__(self, *,
-                 username: str = None, password: str = None,
-                 oauth_token: dict = None):
+    def __init__(self, *, username: str | None = None, password: str | None = None, oauth_token: dict | None = None):
         if oauth_token:
             auth = OAuth2Auth(oauth_token)
         elif username and password:
@@ -126,7 +118,6 @@ class OsmApi:
 
         return r.json()['user']
 
-    @cache
     @retry_exponential()
     def get_user(self, uid: str | int) -> dict | None:
         r = self._http.get(f'/0.6/user/{uid}.json')
@@ -155,11 +146,7 @@ class OsmApi:
             if action_type.startswith('@'):
                 continue
 
-            new = {
-                'node': [],
-                'way': [],
-                'relation': []
-            }
+            new = {'node': [], 'way': [], 'relation': []}
 
             for affected_element in ensure_iterable(affected_elements):
                 element_type, element = next(iter(affected_element.items()))
@@ -167,11 +154,7 @@ class OsmApi:
                 new[element_type].append(element)
 
                 if element['@timestamp'] not in diff['partition']:
-                    diff['partition'][element['@timestamp']] = {
-                        'node': [],
-                        'way': [],
-                        'relation': []
-                    }
+                    diff['partition'][element['@timestamp']] = {'node': [], 'way': [], 'relation': []}
 
                 diff['partition'][element['@timestamp']][element_type].append(element['@id'])
 
@@ -179,12 +162,15 @@ class OsmApi:
 
         return info | diff
 
-    def upload_diff(self, diff: dict, comment: str, extra_tags: dict | None = None) -> str | None:
-        assert 'comment' not in extra_tags
+    def upload_diff(self, diff: dict, comment: str, extra_tags: dict[str, str] | None = None) -> str | None:
+        if 'comment' in extra_tags:
+            raise ValueError('comment is a reserved tag')
+
         extra_tags['comment'] = comment
 
         for key, value in list(extra_tags.items()):
-            assert not key.startswith(TAG_PREFIX)
+            if key.startswith(TAG_PREFIX):
+                raise ValueError(f'{key!r} is a reserved tag')
 
             if not value:
                 del extra_tags[key]
@@ -206,27 +192,35 @@ class OsmApi:
                 print(f'🚧 Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
                 extra_tags[key] = value[:252] + '…'
 
-        changeset = {'osm': {'changeset': {'tag': [
-            {
-                '@k': k,
-                '@v': v
-            } for k, v in extra_tags.items()
-        ]}}}
+        changeset = {
+            'osm': {
+                'changeset': {
+                    'tag': [
+                        {
+                            '@k': k,
+                            '@v': v,
+                        }
+                        for k, v in extra_tags.items()
+                    ]
+                }
+            }
+        }
+
         changeset_xml = xmltodict.unparse(changeset)
 
-        r = self._http.put('/0.6/changeset/create',
-                           content=changeset_xml,
-                           headers=XML_HEADERS)
+        r = self._http.put('/0.6/changeset/create', content=changeset_xml, headers=XML_HEADERS)
         r.raise_for_status()
 
         changeset_id = r.text
         osm_change = build_osm_change(diff, changeset_id)
         osm_change_xml = xmltodict.unparse(osm_change)
 
-        upload_resp = self._http.post(f'/0.6/changeset/{changeset_id}/upload',
-                                      content=osm_change_xml,
-                                      headers=XML_HEADERS,
-                                      timeout=150)
+        upload_resp = self._http.post(
+            f'/0.6/changeset/{changeset_id}/upload',
+            content=osm_change_xml,
+            headers=XML_HEADERS,
+            timeout=150,
+        )
 
         r = self._http.put(f'/0.6/changeset/{changeset_id}/close')
         r.raise_for_status()
@@ -234,7 +228,7 @@ class OsmApi:
         if upload_resp.status_code == 409:
             print(f'🆚 Failed to upload the changes ({upload_resp.status_code})')
             print(f'🆚 {upload_resp.text}')
-            print(f'🆚 The Overpass data is outdated, please try again shortly')
+            print('🆚 The Overpass data is outdated, please try again shortly')
             return None
 
         if upload_resp.status_code != 200:

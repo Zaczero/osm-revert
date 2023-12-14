@@ -2,7 +2,7 @@ import html
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta
-from itertools import chain
+from itertools import chain, pairwise
 
 import xmltodict
 from httpx import Client
@@ -88,61 +88,59 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
         query_filter += ';'
 
     # replace 'rel' alias with 'relation'
-    for match in sorted(re.finditer(r'\brel\b', query_filter),
-                        key=lambda m: m.start(),
-                        reverse=True):
+    for match in sorted(
+        re.finditer(r'\brel\b', query_filter),
+        key=lambda m: m.start(),
+        reverse=True,
+    ):
         start, end = match.start(), match.end()
-
         query_filter = query_filter[:start] + 'relation' + query_filter[end:]
 
     # handle custom (!id:)
-    for match in sorted(re.finditer(r'\(\s*!\s*id\s*:(?P<id>(\s*(,\s*)?\d+)+)\s*\)', query_filter),
-                        key=lambda m: m.start(),
-                        reverse=True):
+    for match in sorted(
+        re.finditer(r'\(\s*!\s*id\s*:(?P<id>(\s*(,\s*)?\d+)+)\s*\)', query_filter),
+        key=lambda m: m.start(),
+        reverse=True,
+    ):
         start, end = match.start(), match.end()
         invert_ids = (i.strip() for i in match.group('id').split(',') if i.strip())
         selector = re.match(r'.*\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter[:start], re.DOTALL).group(1)
 
-        joined_new_ids = ','.join(
-            set(chain.from_iterable(
-                element_ids[et]
-                for et in get_element_types_from_selector(selector)))
-            .difference(invert_ids)
-        )
+        new_ids = set(chain.from_iterable(element_ids[et] for et in get_element_types_from_selector(selector)))
+        new_ids = new_ids.difference(invert_ids)
+        joined_new_ids = ','.join(new_ids)
 
         query_filter = query_filter[:start] + f'(id:{joined_new_ids})' + query_filter[end:]
 
     # apply element id filtering
-    for match in sorted(re.finditer(r'\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter),
-                        key=lambda m: m.start(),
-                        reverse=True):
+    for match in sorted(
+        re.finditer(r'\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter),
+        key=lambda m: m.start(),
+        reverse=True,
+    ):
         end = match.end()
         selector = match.group(1)
 
         joined_element_ids = ','.join(
-            set(chain.from_iterable(
-                element_ids[et]
-                for et in get_element_types_from_selector(selector)))
+            set(chain.from_iterable(element_ids[et] for et in get_element_types_from_selector(selector)))
         )
 
         query_filter = query_filter[:end] + f'(id:{joined_element_ids})' + query_filter[end:]
 
     if implicit_query_way_children:
-        return f'({query_filter});' \
-               f'out meta;' \
-               f'node(w);' \
-               f'out meta;'
+        return f'({query_filter});out meta;node(w);out meta;'
     else:
-        return f'({query_filter});' \
-               f'out meta;'
+        return f'({query_filter});out meta;'
 
 
 def build_query_parents_by_ids(element_ids: dict) -> str:
-    return f'node(id:{",".join(element_ids["node"]) if element_ids["node"] else "-1"})->.n;' \
-           f'way(id:{",".join(element_ids["way"]) if element_ids["way"] else "-1"})->.w;' \
-           f'rel(id:{",".join(element_ids["relation"]) if element_ids["relation"] else "-1"})->.r;' \
-           f'(way(bn.n);rel(bn.n);rel(bw.w);rel(br.r););' \
-           f'out meta;'
+    return (
+        f'node(id:{",".join(element_ids["node"]) if element_ids["node"] else "-1"})->.n;'
+        f'way(id:{",".join(element_ids["way"]) if element_ids["way"] else "-1"})->.w;'
+        f'rel(id:{",".join(element_ids["relation"]) if element_ids["relation"] else "-1"})->.r;'
+        f'(way(bn.n);rel(bn.n);rel(bw.w);rel(br.r););'
+        f'out meta;'
+    )
 
 
 @retry_exponential()
@@ -154,33 +152,26 @@ def fetch_overpass(http: Client, data: str, *, check_bad_request: bool = False) 
         e = response.text.find('</body>')
 
         if e > s > -1:
-            body = response.text[s + 6:e].strip()
-            body = re.sub(r'<.*?>', '', body, re.DOTALL)
-            lines = [html.unescape(line.strip()[7:])
-                     for line in body.split('\n')
-                     if line.strip().startswith('Error: ')]
+            body = response.text[s + 6 : e].strip()
+            body = re.sub(r'<.*?>', '', body, flags=re.DOTALL)
+            lines = [html.unescape(line.strip()[7:]) for line in body.split('\n') if line.strip().startswith('Error: ')]
 
             if lines:
-                return '\n'.join(
-                    [f'🛑 Overpass - Bad Request:'] +
-                    [f'🛑 {line}' for line in lines])
+                return '🛑 Overpass - Bad Request:\n' + '\n'.join(f'🛑 {line}' for line in lines)
 
     response.raise_for_status()  # TODO: return error message instead raise
     return xmltodict.parse(response.text)
 
 
 def get_current_map(actions: list[dict]) -> dict[str, dict[str, dict]]:
-    result = {
-        'node': {},
-        'way': {},
-        'relation': {}
-    }
+    result = {'node': {}, 'way': {}, 'relation': {}}
 
     for action in actions:
         if action['@type'] == 'create':
             element_type, element = next(iter((k, v) for k, v in action.items() if not k.startswith('@')))
         else:
             element_type, element = next(iter(action['new'].items()))
+
         result[element_type][element['@id']] = element
 
     return result
@@ -215,7 +206,12 @@ class Overpass:
             get_http_client('https://overpass-api.de/api/interpreter'),
         ]
 
-    def get_changeset_elements_history(self, changeset: dict, steps: int, query_filter: str) -> dict[str, list[DiffEntry]] | None:
+    def get_changeset_elements_history(
+        self,
+        changeset: dict,
+        steps: int,
+        query_filter: str,
+    ) -> dict[str, list[DiffEntry]] | None:
         errors = []
 
         for http in self._https:
@@ -241,7 +237,13 @@ class Overpass:
 
         return None
 
-    def _get_changeset_elements_history(self, http: Client, changeset: dict, steps: int, query_filter: str) -> dict[str, list[DiffEntry]] | str:
+    def _get_changeset_elements_history(
+        self,
+        http: Client,
+        changeset: dict,
+        steps: int,
+        query_filter: str,
+    ) -> dict[str, list[DiffEntry]] | str:
         bbox = get_bbox(changeset)
         changeset_id = changeset['osm']['changeset']['@id']
         changeset_edits = []
@@ -254,7 +256,10 @@ class Overpass:
 
             partition_query = f'[timeout:180]{bbox}{partition_adiff};{query_unfiltered}'
             partition_diff = fetch_overpass(http, partition_query)
-            assert isinstance(partition_diff, dict)
+
+            if isinstance(partition_diff, str):
+                return partition_diff
+
             partition_action = ensure_iterable(partition_diff['osm'].get('action', []))
 
             if parse_timestamp(partition_diff['osm']['meta']['@osm_base']) <= parse_timestamp(timestamp):
@@ -278,11 +283,7 @@ class Overpass:
                 filtered_action = ensure_iterable(filtered_diff['osm'].get('action', []))
 
                 dedup_node_ids = set()
-                data_map = {
-                    'node': {},
-                    'way': {},
-                    'relation': {}
-                }
+                data_map = {'node': {}, 'way': {}, 'relation': {}}
 
                 for a in partition_action:
                     t, o, n = parse_action(a)
@@ -307,19 +308,22 @@ class Overpass:
                     old_new_t = data_map[element_type].get(element_new['@id'], None)
 
                     if old_new_t is None:
-                        return f'❓️ Overpass data is incomplete (missing_merge)'
+                        return '❓️ Overpass data is incomplete (missing_merge)'
 
                     if old_new_t[1]['@version'] != element_new['@version']:
-                        return f'❓️ Overpass data is incomplete (bad_merge_version)'
+                        return '❓️ Overpass data is incomplete (bad_merge_version)'
 
-                    changeset_edits.append((element_type,) + old_new_t)
+                    changeset_edits.append((element_type, *old_new_t))
 
             else:
                 changeset_edits.extend(parse_action(a) for a in partition_action)
 
             current_query = f'[timeout:180]{bbox}{current_adiff};{query_unfiltered}'
             current_diff = fetch_overpass(http, current_query)
-            assert isinstance(current_diff, dict)
+
+            if isinstance(current_diff, str):
+                return current_diff
+
             current_partition_action = ensure_iterable(current_diff['osm'].get('action', []))
             current_action.extend(current_partition_action)
 
@@ -327,11 +331,7 @@ class Overpass:
 
         current_map = get_current_map(current_action)
 
-        result: dict[str, list[DiffEntry]] = {
-            'node': [],
-            'way': [],
-            'relation': []
-        }
+        result: dict[str, list[DiffEntry]] = {'node': [], 'way': [], 'relation': []}
 
         for element_type, element_old, element_new in changeset_edits:
             # TODO: skip checks by time
@@ -355,12 +355,7 @@ class Overpass:
             ensure_visible_tag(element_new)
             ensure_visible_tag(element_current)
 
-            result[element_type].append(DiffEntry(
-                timestamp,
-                element_id,
-                element_old,
-                element_new,
-                element_current))
+            result[element_type].append(DiffEntry(timestamp, element_id, element_old, element_new, element_current))
 
         return result
 
@@ -370,14 +365,14 @@ class Overpass:
         internal_ids = {
             'node': {e['@id'] for e in invert['node']},
             'way': {e['@id'] for e in invert['way']},
-            'relation': {e['@id'] for e in invert['relation']}
+            'relation': {e['@id'] for e in invert['relation']},
         }
 
         for _ in range(10):
             deleting_ids = {
                 'node': {e['@id'] for e in invert['node'] if e['@visible'] == 'false'},
                 'way': {e['@id'] for e in invert['way'] if e['@visible'] == 'false'},
-                'relation': {e['@id'] for e in invert['relation'] if e['@visible'] == 'false'}
+                'relation': {e['@id'] for e in invert['relation'] if e['@visible'] == 'false'},
             }
 
             if not any(ids for ids in deleting_ids.values()):
@@ -389,12 +384,14 @@ class Overpass:
 
             parents_query = f'[timeout:180];{query_by_ids}'
             data = fetch_overpass(self._https[0], parents_query)
-            assert isinstance(data, dict)
+
+            if isinstance(data, str):
+                return data
 
             invert_map = {
                 'node': {e['@id']: e for e in invert['node']},
                 'way': {e['@id']: e for e in invert['way']},
-                'relation': {e['@id']: e for e in invert['relation']}
+                'relation': {e['@id']: e for e in invert['relation']},
             }
 
             parents = {
@@ -407,7 +404,7 @@ class Overpass:
 
             for element_type, elements in parents.items():
                 for element in elements:
-                    assert isinstance(element, dict)
+                    element: dict
 
                     # skip internal elements when not fixing parents
                     if not fix_parents and element['@id'] in internal_ids[element_type]:
@@ -421,11 +418,7 @@ class Overpass:
                     if element.get('@visible', 'true') == 'false':
                         continue
 
-                    deleting_child_ids = {
-                        'node': set(),
-                        'way': set(),
-                        'relation': set()
-                    }
+                    deleting_child_ids = {'node': set(), 'way': set(), 'relation': set()}
 
                     if element_type == 'way':
                         element['nd'] = ensure_iterable(element.get('nd', []))
@@ -496,14 +489,13 @@ class Overpass:
 
                             invert_key_idxs.sort()
 
-                            invert[key] = list(chain(
-                                invert[key][:invert_key_idxs[0]],
-                                *(
-                                    invert[key][l+1:r]
-                                    for l, r in zip(invert_key_idxs, invert_key_idxs[1:])
-                                ),
-                                invert[key][invert_key_idxs[-1]+1:]
-                            ))
+                            invert[key] = list(
+                                chain(
+                                    invert[key][: invert_key_idxs[0]],
+                                    *(invert[key][left + 1 : right] for left, right in pairwise(invert_key_idxs)),
+                                    invert[key][invert_key_idxs[-1] + 1 :],
+                                )
+                            )
 
             if not changed:
                 return counter
