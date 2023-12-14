@@ -5,8 +5,10 @@ verify_ssl = true
 
 [packages]
 authlib = "*"
+brotlipy = "*"
 cachetools = "*"
 fastapi = "*"
+h2 = "*"
 httpx = "*"
 itsdangerous = "*"
 jinja2 = "*"
@@ -14,7 +16,6 @@ starlette = "*"
 uvicorn = {extras = ["standard"], version = "*"}
 
 [dev-packages]
-autopep8 = "*"
 
 [requires]
 python_version = "3.11"

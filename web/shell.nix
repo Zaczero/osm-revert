@@ -14,6 +14,7 @@ with pkgs; let
   devBuildInputs = [
     gnumake
     pipenv
+    ruff
     esbuild
   ];
 

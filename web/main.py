@@ -4,7 +4,6 @@ import os
 import re
 from collections import defaultdict
 from shlex import quote
-from typing import Optional
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
@@ -15,8 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from config import (CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES,
-                    OSM_SECRET, USER_AGENT)
+from config import CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OSM_SECRET, USER_AGENT
 
 INDEX_REDIRECT = RedirectResponse('/', status_code=status.HTTP_302_FOUND)
 
@@ -30,7 +28,7 @@ user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
 active_ws = defaultdict(lambda: asyncio.Semaphore(CONNECTION_LIMIT))
 
 
-async def fetch_user_details(request: Request) -> Optional[dict]:
+async def fetch_user_details(request: Request) -> dict | None:
     if 'oauth_token' not in request.session:
         return None
 
@@ -44,9 +42,7 @@ async def fetch_user_details(request: Request) -> Optional[dict]:
     try:
         return user_cache[user_cache_key]
     except Exception:
-        async with AsyncOAuth2Client(
-                token=token,
-                headers={'User-Agent': USER_AGENT}) as http:
+        async with AsyncOAuth2Client(token=token, headers={'User-Agent': USER_AGENT}) as http:
             response = await http.get('https://api.openstreetmap.org/api/0.6/user/details.json')
 
         if response.status_code != 200:
@@ -76,9 +72,10 @@ async def index(request: Request):
 @app.post('/login')
 async def login(request: Request):
     async with AsyncOAuth2Client(
-            client_id=OSM_CLIENT,
-            scope=OSM_SCOPES,
-            redirect_uri=str(request.url_for('callback'))) as http:
+        client_id=OSM_CLIENT,
+        scope=OSM_SCOPES,
+        redirect_uri=str(request.url_for('callback')),
+    ) as http:
         authorization_url, state = http.create_authorization_url('https://www.openstreetmap.org/oauth2/authorize')
 
     request.session['oauth_state'] = state
@@ -93,12 +90,16 @@ async def callback(request: Request):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Invalid OAuth state')
 
     async with AsyncOAuth2Client(
-            client_id=OSM_CLIENT,
-            client_secret=OSM_SECRET,
-            redirect_uri=str(request.url_for('callback')),
-            state=state,
-            headers={'User-Agent': USER_AGENT}) as http:
-        token = await http.fetch_token('https://www.openstreetmap.org/oauth2/token', authorization_response=str(request.url))
+        client_id=OSM_CLIENT,
+        client_secret=OSM_SECRET,
+        redirect_uri=str(request.url_for('callback')),
+        state=state,
+        headers={'User-Agent': USER_AGENT},
+    ) as http:
+        token = await http.fetch_token(
+            'https://www.openstreetmap.org/oauth2/token',
+            authorization_response=str(request.url),
+        )
 
     request.session['oauth_token'] = token
     return INDEX_REDIRECT
@@ -148,7 +149,8 @@ async def websocket(ws: WebSocket):
 
 async def main(ws: WebSocket, args: dict) -> str:
     for required_arg in ('changesets', 'query_filter', 'comment', 'upload', 'discussion', 'discussion_target'):
-        assert required_arg in args, f'Missing argument: {required_arg}'
+        if required_arg not in args:
+            raise ValueError(f'Missing argument: {required_arg!r}')
 
     changesets = re.split(r'(?:;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
@@ -166,36 +168,48 @@ async def main(ws: WebSocket, args: dict) -> str:
         return '❗️ One or more changesets contain non-numeric characters'
 
     # upload specific requirements
-    if upload:
-        if not comment:
-            return '❗️ No comment was provided for the changes'
+    if upload and not comment:
+        return '❗️ No comment was provided for the changes'
 
-    assert discussion_target in {'all', 'newest', 'oldest'}, 'Invalid discussion target'
+    if discussion_target not in ('all', 'newest', 'oldest'):
+        return '❗️ Invalid discussion target'
 
     token = ws.session['oauth_token']
     version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
     website = os.getenv('OSM_REVERT_WEBSITE', '')
 
-    if upload:
+    if upload:  # noqa: SIM108
         extra_args = []
     else:
         extra_args = ['--print_osc', 'True']
 
     process = await asyncio.create_subprocess_exec(
-        'docker', 'run', '--rm',
-        '--env', f'OSM_REVERT_VERSION_SUFFIX={version_suffix}',
-        '--env', f'OSM_REVERT_WEBSITE={website}',
+        'docker',
+        'run',
+        '--rm',
+        '--env',
+        f'OSM_REVERT_VERSION_SUFFIX={version_suffix}',
+        '--env',
+        f'OSM_REVERT_WEBSITE={website}',
         'zaczero/osm-revert',
-        '--changeset_ids', quote(','.join(changesets)),
-        '--query_filter', quote(query_filter),
-        '--comment', quote(comment),
-        '--oauth_token', quote(json.dumps(token)),
-        '--discussion', quote(discussion),
-        '--discussion_target', quote(discussion_target),
-        '--fix_parents', str(fix_parents),
+        '--changeset_ids',
+        quote(','.join(changesets)),
+        '--query_filter',
+        quote(query_filter),
+        '--comment',
+        quote(comment),
+        '--oauth_token',
+        quote(json.dumps(token)),
+        '--discussion',
+        quote(discussion),
+        '--discussion_target',
+        quote(discussion_target),
+        '--fix_parents',
+        str(fix_parents),
         *extra_args,
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT)
+        stderr=asyncio.subprocess.STDOUT,
+    )
 
     try:
         while True:
