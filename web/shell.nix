@@ -23,8 +23,8 @@ let
 
       # authorized.js
       HASH=$(esbuild static/js/authorized.js --bundle --minify | sha256sum | head -c8 ; echo "") && \
-      esbuild static/js/authorized.js --bundle --minify --sourcemap --charset=utf8 --outfile=static/js/menu.$HASH.js && \
-      find templates -type f -exec sed -i 's|src="/static/js/authorized.js" type="module"|src="/static/js/menu.'$HASH'.js"|g' {} \;
+      esbuild static/js/authorized.js --bundle --minify --sourcemap --charset=utf8 --outfile=static/js/authorized.$HASH.js && \
+      find templates -type f -exec sed -i 's|src="/static/js/authorized.js"|src="/static/js/authorized.'$HASH'.js"|g' {} \;
 
       # style.css
       HASH=$(esbuild static/css/style.css --bundle --minify | sha256sum | head -c8 ; echo "") && \
