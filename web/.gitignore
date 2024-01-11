@@ -1,5 +1,8 @@
-# Created by https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode
-# Edit at https://www.toptal.com/developers/gitignore?templates=dotenv,python,pycharm,visualstudiocode
+# Created by https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode,direnv
+# Edit at https://www.toptal.com/developers/gitignore?templates=dotenv,python,pycharm,visualstudiocode,direnv
+
+### direnv ###
+.direnv
 
 ### dotenv ###
 .env
@@ -307,4 +310,4 @@ pyrightconfig.json
 .history
 .ionide
 
-# End of https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode
+# End of https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode,direnv
