@@ -18,7 +18,7 @@ let
     # Scripts
     # -- Misc
     (writeShellScriptBin "make-version" ''
-      sed -i -r "s|VERSION_DATE = '.?'|VERSION_DATE = '$(date +%Y-%m-%d)'|g" config.py
+      sed -i -r "s|VERSION_DATE = '.?'|VERSION_DATE = '$(date +%Y%m%d)'|g" config.py
     '')
     (writeShellScriptBin "make-bundle" ''
       chmod +w static/js static/css templates
@@ -41,6 +41,7 @@ let
     # Scripts
     # -- Misc
     (writeShellScriptBin "docker-build-push" ''
+      set -e
       if command -v podman &> /dev/null; then docker() { podman "$@"; } fi
       docker push $(docker load < $(nix-build --no-out-link) | sed -En 's/Loaded image: (\S+)/\1/p')
     '')
