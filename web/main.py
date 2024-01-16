@@ -245,12 +245,12 @@ def revert_worker(
     env: dict[str, str],
     changeset_ids: Sequence[int],
     comment: str,
-    oauth_token: dict | None = None,
-    discussion: str | None = None,
-    discussion_target: str | None = None,
-    print_osc: bool | None = None,
-    query_filter: str = '',
-    fix_parents: bool = True,
+    oauth_token: dict,
+    discussion: str,
+    discussion_target: str,
+    print_osc: bool,
+    query_filter: str,
+    fix_parents: bool,
 ) -> int:
     # Redirect stdout to the pipe
     sys.stdout = io.TextIOWrapper(os.fdopen(conn.fileno(), 'wb', buffering=0), write_through=True)
