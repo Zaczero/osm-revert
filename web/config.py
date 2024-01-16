@@ -1,6 +1,6 @@
 import os
 
-VERSION = '1.2'
+VERSION = '1.2.0'
 VERSION_DATE = ''
 
 if VERSION_DATE:
