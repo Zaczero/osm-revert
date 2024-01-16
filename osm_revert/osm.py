@@ -1,8 +1,8 @@
 import xmltodict
 from authlib.integrations.httpx_client import OAuth2Auth
 
-from config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX, XML_HEADERS
-from utils import ensure_iterable, get_http_client, retry_exponential
+from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX, XML_HEADERS
+from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 
 def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:

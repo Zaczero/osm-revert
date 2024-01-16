@@ -13,22 +13,10 @@ let
   packages' = with pkgs; [
     # Base packages
     python312
-
-    # Scripts
-    # -- Misc
-    (writeShellScriptBin "make-version" ''
-      sed -i -r "s|VERSION = '([0-9.]+)'|VERSION = '\1.$(date +%y%m%d)'|g" config.py
-    '')
   ] ++ lib.optionals isDevelopment [
     # Development packages
     poetry
     ruff
-
-    # Scripts
-    # -- Misc
-    (writeShellScriptBin "docker-build-push" ''
-      docker push $(docker load < $(nix-build --no-out-link) | sed -En 's/Loaded image: (\S+)/\1/p')
-    '')
   ];
 
   shell' = with pkgs; ''
@@ -38,7 +26,7 @@ let
 
     echo "Installing Python dependencies"
     export POETRY_VIRTUALENVS_IN_PROJECT=1
-    poetry install --no-root --compile
+    poetry install --compile
 
     echo "Activating Python virtual environment"
     source .venv/bin/activate
@@ -47,12 +35,11 @@ let
 
     # Development environment variables
     if [ -f .env ]; then
+      echo "Loading .env file"
       set -o allexport
       source .env set
       +o allexport
     fi
-  '' + lib.optionalString (!isDevelopment) ''
-    make-version
   '';
 in
 pkgs.mkShell

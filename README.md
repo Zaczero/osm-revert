@@ -32,11 +32,11 @@ This reverter has no arbitrary limits on the changeset size.
 
 ### Contact me
 
-https://monicz.dev/#get-in-touch
+<https://monicz.dev/#get-in-touch>
 
 ### Support my work
 
-https://monicz.dev/#support-my-work
+<https://monicz.dev/#support-my-work>
 
 ### Credits
 

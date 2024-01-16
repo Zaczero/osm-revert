@@ -1,31 +1,35 @@
-import asyncio
-import json
+import io
 import os
 import re
+import sys
 from collections import defaultdict
-from shlex import quote
+from collections.abc import Sequence
+from multiprocessing import Pipe, Process
+from multiprocessing.connection import Connection
 
+import anyio
+from anyio import WouldBlock, fail_after, get_cancelled_exc_class, open_file, to_thread
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
+from fastapi.responses import ORJSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocket
 
-from config import CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OSM_SECRET, USER_AGENT
+from config import CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OSM_SECRET, USER_AGENT, VERSION_DATE
 
 INDEX_REDIRECT = RedirectResponse('/', status_code=status.HTTP_302_FOUND)
 
-app = FastAPI()
+app = FastAPI(default_response_class=ORJSONResponse)
 app.add_middleware(SessionMiddleware, secret_key=INSTANCE_SECRET, max_age=31536000)  # 1 year
 app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
 templates = Jinja2Templates(directory='templates')
 
 user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
-active_ws = defaultdict(lambda: asyncio.Semaphore(CONNECTION_LIMIT))
+active_ws = defaultdict(lambda: anyio.Semaphore(CONNECTION_LIMIT))
 
 
 async def fetch_user_details(request: Request) -> dict | None:
@@ -127,18 +131,17 @@ async def websocket(ws: WebSocket):
 
     semaphore = active_ws[session_id]
 
-    if semaphore.locked():
+    try:
+        semaphore.acquire_nowait()
+    except WouldBlock:
         await ws.close(1008, 'Too many simultaneous connections for this user')
         return
-
-    await semaphore.acquire()
 
     try:
         while True:
             args = await ws.receive_json()
             last_message = await main(ws, args)
             await ws.send_json({'message': last_message, 'last': True})
-
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -148,18 +151,26 @@ async def websocket(ws: WebSocket):
 
 
 async def main(ws: WebSocket, args: dict) -> str:
-    for required_arg in ('changesets', 'query_filter', 'comment', 'upload', 'discussion', 'discussion_target'):
+    for required_arg in (
+        'changesets',
+        'query_filter',
+        'comment',
+        'upload',
+        'discussion',
+        'discussion_target',
+        'fix_parents',
+    ):
         if required_arg not in args:
             raise ValueError(f'Missing argument: {required_arg!r}')
 
     changesets = re.split(r'(?:;|,|\s)+', args['changesets'])
     changesets = [c.strip() for c in changesets if c.strip()]
-    query_filter = args['query_filter'].strip()
-    comment = re.sub(r'\s{2,}', ' ', args['comment']).strip()
-    upload = args['upload']
-    discussion = args['discussion']
-    discussion_target = args['discussion_target']
-    fix_parents = args['fix_parents']
+    query_filter: str = args['query_filter'].strip()
+    comment: str = re.sub(r'\s{2,}', ' ', args['comment']).strip()
+    upload: bool = args['upload']
+    discussion: str = args['discussion']
+    discussion_target: str = args['discussion_target']
+    fix_parents: bool = args['fix_parents']
 
     if not changesets:
         return '❗️ No changesets were provided'
@@ -174,53 +185,88 @@ async def main(ws: WebSocket, args: dict) -> str:
     if discussion_target not in ('all', 'newest', 'oldest'):
         return '❗️ Invalid discussion target'
 
-    token = ws.session['oauth_token']
-    version_suffix = os.getenv('OSM_REVERT_VERSION_SUFFIX', '')
-    website = os.getenv('OSM_REVERT_WEBSITE', '')
+    changeset_ids = tuple(map(int, changesets))
+    oauth_token = ws.session['oauth_token']
+    print_osc = not upload
 
-    if upload:  # noqa: SIM108
-        extra_args = []
-    else:
-        extra_args = ['--print_osc', 'True']
+    r, w = Pipe(duplex=False)
+    exitcode = None
 
-    process = await asyncio.create_subprocess_exec(
-        'docker',
-        'run',
-        '--rm',
-        '--env',
-        f'OSM_REVERT_VERSION_SUFFIX={version_suffix}',
-        '--env',
-        f'OSM_REVERT_WEBSITE={website}',
-        'zaczero/osm-revert',
-        '--changeset_ids',
-        quote(','.join(changesets)),
-        '--query_filter',
-        quote(query_filter),
-        '--comment',
-        quote(comment),
-        '--oauth_token',
-        quote(json.dumps(token)),
-        '--discussion',
-        quote(discussion),
-        '--discussion_target',
-        quote(discussion_target),
-        '--fix_parents',
-        str(fix_parents),
-        *extra_args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+    with fail_after(300), r, w:  # 5 minutes
+        async with anyio.create_task_group() as tg:
+
+            async def process_task():
+                nonlocal exitcode
+
+                proc = Process(
+                    target=revert_worker,
+                    kwargs={
+                        'conn': w,
+                        'env': {
+                            'OSM_REVERT_VERSION_DATE': VERSION_DATE,
+                            'OSM_REVERT_WEBSITE': os.getenv('OSM_REVERT_WEBSITE', ''),
+                        },
+                        'changeset_ids': changeset_ids,
+                        'comment': comment,
+                        'oauth_token': oauth_token,
+                        'discussion': discussion,
+                        'discussion_target': discussion_target,
+                        'print_osc': print_osc,
+                        'query_filter': query_filter,
+                        'fix_parents': fix_parents,
+                    },
+                )
+
+                proc.start()
+
+                try:
+                    await to_thread.run_sync(proc.join, cancellable=True)
+                except get_cancelled_exc_class():
+                    proc.kill()
+                    raise
+
+                w.send_bytes(b'EOF\n')
+                exitcode = proc.exitcode
+
+            tg.start_soon(process_task)
+
+            async with await open_file(r.fileno(), closefd=False) as stdout:
+                async for line in stdout:
+                    if line.endswith('EOF\n'):
+                        break
+                    await ws.send_json({'message': line.rstrip(' \n')})
+
+    return f'Exit code: {exitcode}'
+
+
+def revert_worker(
+    *,
+    conn: Connection,
+    env: dict[str, str],
+    changeset_ids: Sequence[int],
+    comment: str,
+    oauth_token: dict | None = None,
+    discussion: str | None = None,
+    discussion_target: str | None = None,
+    print_osc: bool | None = None,
+    query_filter: str = '',
+    fix_parents: bool = True,
+) -> int:
+    # Redirect stdout to the pipe
+    sys.stdout = io.TextIOWrapper(os.fdopen(conn.fileno(), 'wb', buffering=0), write_through=True)
+
+    for k, v in env.items():
+        os.environ[k] = v
+
+    import osm_revert
+
+    return osm_revert.main(
+        changeset_ids=changeset_ids,
+        comment=comment,
+        oauth_token=oauth_token,
+        discussion=discussion,
+        discussion_target=discussion_target,
+        print_osc=print_osc,
+        query_filter=query_filter,
+        fix_parents=fix_parents,
     )
-
-    try:
-        while True:
-            line = await process.stdout.readline()
-
-            if not line:
-                break
-
-            await ws.send_json({'message': line.decode('utf-8').rstrip()})
-    finally:
-        if process.returncode is None:
-            process.kill()
-
-    return f'Exit code: {process.returncode}'

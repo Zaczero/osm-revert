@@ -8,17 +8,7 @@
             "name": "Python: main.py",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/main.py",
-            "args": [
-                "142945620",
-                "revert",
-                "--print_osc",
-                "True",
-                "--query_filter",
-                "",
-                "--fix_parents",
-                "True",
-            ],
+            "program": "${workspaceFolder}/osm_revert/main.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

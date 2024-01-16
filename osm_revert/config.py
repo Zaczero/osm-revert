@@ -1,6 +1,9 @@
 import os
 
-VERSION = '1.2.2'
+VERSION = '1.3'
+
+if version_date := os.getenv('OSM_REVERT_VERSION_DATE'):
+    VERSION += f'.{version_date}'
 
 if version_suffix := os.getenv('OSM_REVERT_VERSION_SUFFIX'):
     VERSION += f'-{version_suffix}'
@@ -17,9 +20,7 @@ CHANGESETS_LIMIT_CONFIG = {
         500: 10,
         5000: 20,
     },
-    'moderator': {
-        0: 50
-    }
+    'moderator': {0: 50},
 }
 
 TAG_MAX_LENGTH = 255

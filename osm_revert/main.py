@@ -1,17 +1,17 @@
-import json
+import functools
 import os
 import time
 import traceback
+from collections.abc import Sequence
 
-import fire
 import xmltodict
 
-from config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, WEBSITE
-from diff_entry import DiffEntry
-from invert import Inverter
-from osm import OsmApi, build_osm_change
-from overpass import Overpass
-from utils import ensure_iterable, is_osm_moderator
+from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, WEBSITE
+from osm_revert.diff_entry import DiffEntry
+from osm_revert.invert import Inverter
+from osm_revert.osm import OsmApi, build_osm_change
+from osm_revert.overpass import Overpass
+from osm_revert.utils import is_osm_moderator
 
 
 def merge_and_sort_diffs(diffs: list[dict[str, list[DiffEntry]]]) -> dict[str, list[DiffEntry]]:
@@ -47,6 +47,7 @@ def print_warn_elements(warn_elements: dict[str, list[str]]) -> None:
 
 
 def main_timer(func):
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.perf_counter()
 
@@ -75,35 +76,29 @@ def main_timer(func):
 # TODO: dataclasses
 @main_timer
 def main(
-    changeset_ids: list | str | int,
+    changeset_ids: Sequence[int],
     comment: str,
     username: str | None = None,
     password: str | None = None,
     *,
-    oauth_token: str | None = None,
+    oauth_token: dict | None = None,
     discussion: str | None = None,
     discussion_target: str | None = None,
     osc_file: str | None = None,
     print_osc: bool | None = None,
     query_filter: str = '',
-    only_tags: list | str | int = '',
+    only_tags: Sequence[str] = (),
     fix_parents: bool = True,
 ) -> int:
-    changeset_ids = tuple(sorted({str(cs_id).strip() for cs_id in ensure_iterable(changeset_ids) if cs_id}))
-
     if not changeset_ids:
-        raise ValueError('Missing changeset id')
-    if not all(c.isnumeric() for c in changeset_ids):
-        raise ValueError('Changeset ids must be numeric')
+        raise ValueError('Missing changeset ids')
 
-    only_tags = frozenset(str(only_tag).strip() for only_tag in ensure_iterable(only_tags) if only_tag)
+    changeset_ids = tuple(sorted(set(changeset_ids)))
+    only_tags = frozenset(tag.strip() for tag in only_tags if tag)
 
     if not username and not password:
         username = os.getenv('OSM_USERNAME')
         password = os.getenv('OSM_PASSWORD')
-
-    if oauth_token:
-        oauth_token: dict = json.loads(oauth_token)
 
     print('🔒️ Logging in to OpenStreetMap')
     osm = OsmApi(username=username, password=password, oauth_token=oauth_token)
@@ -134,7 +129,6 @@ def main(
     diffs = []
 
     for changeset_id in changeset_ids:
-        changeset_id = int(changeset_id)
         print(f'☁️ Downloading changeset {changeset_id}')
 
         print('[1/?] OpenStreetMap …')
@@ -263,4 +257,11 @@ def main(
 
 
 if __name__ == '__main__':
-    fire.Fire(main)
+    # For debugging
+    main(
+        changeset_ids=[142945620],
+        comment='revert',
+        print_osc=True,
+        query_filter='',
+        fix_parents=True,
+    )

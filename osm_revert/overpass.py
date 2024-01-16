@@ -7,9 +7,9 @@ from itertools import chain, pairwise
 import xmltodict
 from httpx import Client
 
-from config import REVERT_TO_DATE
-from diff_entry import DiffEntry
-from utils import ensure_iterable, get_http_client, retry_exponential
+from osm_revert.config import REVERT_TO_DATE
+from osm_revert.diff_entry import DiffEntry
+from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 
 def parse_timestamp(timestamp: str) -> int:

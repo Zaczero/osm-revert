@@ -1,6 +1,11 @@
 import os
 
-VERSION = '1.1.2'
+VERSION = '1.2'
+VERSION_DATE = ''
+
+if VERSION_DATE:
+    VERSION += f'.{VERSION_DATE}'
+
 CREATED_BY = f'osm-revert-ui {VERSION}'
 USER_AGENT = f'osm-revert-ui/{VERSION} (+https://github.com/Zaczero/osm-revert)'
 

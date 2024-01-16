@@ -1,4 +1,4 @@
-from diff_match_patch import diff_match_patch
+from osm_revert.diff_match_patch import diff_match_patch
 
 
 def dmp_retry_reverse(old: list, new: list, current: list) -> list | None:

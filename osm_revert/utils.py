@@ -8,7 +8,7 @@ from typing import Any
 
 from httpx import Client
 
-from config import USER_AGENT
+from osm_revert.config import USER_AGENT
 
 _RUN_COUNTER = defaultdict(int)
 

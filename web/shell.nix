@@ -13,11 +13,13 @@ let
   packages' = with pkgs; [
     # Base packages
     python312
-    docker-client
     esbuild
 
     # Scripts
     # -- Misc
+    (writeShellScriptBin "make-version" ''
+      sed -i -r "s|VERSION_DATE = '.?'|VERSION_DATE = '$(date +%Y-%m-%d)'|g" config.py
+    '')
     (writeShellScriptBin "make-bundle" ''
       chmod +w static/js static/css templates
 
@@ -39,6 +41,7 @@ let
     # Scripts
     # -- Misc
     (writeShellScriptBin "docker-build-push" ''
+      if command -v podman &> /dev/null; then docker() { podman "$@"; } fi
       docker push $(docker load < $(nix-build --no-out-link) | sed -En 's/Loaded image: (\S+)/\1/p')
     '')
   ];
@@ -66,6 +69,7 @@ let
       +o allexport
     fi
   '' + lib.optionalString (!isDevelopment) ''
+    make-version
     make-bundle
   '';
 in

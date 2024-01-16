@@ -1,9 +1,9 @@
 import json
 from copy import deepcopy
 
-from diff_entry import DiffEntry
-from dmp_utils import dmp_retry_reverse
-from utils import ensure_iterable, limit_execution_count
+from osm_revert.diff_entry import DiffEntry
+from osm_revert.dmp_utils import dmp_retry_reverse
+from osm_revert.utils import ensure_iterable, limit_execution_count
 
 
 def _set_visible_original(target: dict | None, current: dict):
