@@ -1,6 +1,6 @@
 import os
 
-VERSION = '1.3.0'
+VERSION = '1.3.1'
 
 if version_date := os.getenv('OSM_REVERT_VERSION_DATE'):
     VERSION += f'.{version_date}'

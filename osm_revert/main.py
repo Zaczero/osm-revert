@@ -28,7 +28,7 @@ def merge_and_sort_diffs(diffs: list[dict[str, list[DiffEntry]]]) -> dict[str, l
     return result
 
 
-def filter_discussion_changesets(changeset_ids: list[str], target: str) -> list[str]:
+def filter_discussion_changesets(changeset_ids: Sequence[int], target: str) -> Sequence[int]:
     if target == 'all':
         return changeset_ids
     if target == 'newest':
@@ -37,7 +37,7 @@ def filter_discussion_changesets(changeset_ids: list[str], target: str) -> list[
         return changeset_ids[:1]
 
     print(f'🚧 Warning: Unknown discussion target: {target}')
-    return []
+    return ()
 
 
 def print_warn_elements(warn_elements: dict[str, list[str]]) -> None:
@@ -227,7 +227,7 @@ def main(
         if len(changeset_ids) == 1:
             extra_args['id'] = ';'.join(f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids)
         else:
-            extra_args['id'] = ';'.join(changeset_ids)
+            extra_args['id'] = ';'.join(map(str, changeset_ids))
 
         if query_filter:
             extra_args['filter'] = query_filter
@@ -240,13 +240,14 @@ def main(
             if len(discussion) >= 4:  # prevent accidental discussions
                 discussion += f'\n\n{changeset_url}'
 
-                d_changeset_ids = filter_discussion_changesets(changeset_ids, discussion_target)
-                print(f'💬 Discussing {len(d_changeset_ids)} changeset{"s" if len(d_changeset_ids) > 1 else ""}')
+                discuss_changeset_ids = filter_discussion_changesets(changeset_ids, discussion_target)
+                print(
+                    f'💬 Discussing {len(discuss_changeset_ids)} changeset{"s" if len(discuss_changeset_ids) > 1 else ""}'
+                )
 
-                for i, changeset_id in enumerate(d_changeset_ids, 1):
-                    changeset_id = int(changeset_id)
+                for i, changeset_id in enumerate(discuss_changeset_ids, 1):
                     status = osm.post_discussion_comment(changeset_id, discussion)
-                    print(f'[{i}/{len(d_changeset_ids)}] Changeset {changeset_id}: {status}')
+                    print(f'[{i}/{len(discuss_changeset_ids)}] Changeset {changeset_id}: {status}')
 
             print_warn_elements(inverter.warnings)
             print('✅ Success')
