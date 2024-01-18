@@ -18,7 +18,7 @@ let
     # Scripts
     # -- Misc
     (writeShellScriptBin "make-version" ''
-      sed -i -r "s|VERSION_DATE = '.?'|VERSION_DATE = '$(date +%Y%m%d)'|g" config.py
+      sed -i -r "s|VERSION_DATE = '.?'|VERSION_DATE = '$(date +%y%m%d)'|g" config.py
     '')
     (writeShellScriptBin "make-bundle" ''
       chmod +w static/js static/css templates
