@@ -35,7 +35,6 @@ with pkgs; dockerTools.buildLayeredImage {
   config = {
     WorkingDir = "/app";
     Env = [
-      "LD_LIBRARY_PATH=${lib.makeLibraryPath shell.buildInputs}"
       "PYTHONPATH=${python-venv}/lib"
       "PYTHONUNBUFFERED=1"
       "PYTHONDONTWRITEBYTECODE=1"

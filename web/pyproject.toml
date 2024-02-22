@@ -12,9 +12,9 @@ fastapi = "<1"
 httpx = {extras = ["brotli", "http2"], version = "<1"}
 itsdangerous = "^2.1.2"
 jinja2 = "^3.1.3"
-orjson = "3.9.10"
 osm-revert = {path = ".."}
 python = "^3.12"
+sentry-sdk = {extras = ["fastapi", "httpx"], version = "^1.40.5"}
 uvicorn = {extras = ["standard"], version = "<1"}
 
 [build-system]

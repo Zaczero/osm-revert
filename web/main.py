@@ -8,13 +8,14 @@ from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 
 import anyio
-from anyio import WouldBlock, fail_after, get_cancelled_exc_class, open_file, to_thread
+from anyio import WouldBlock, create_task_group, fail_after, get_cancelled_exc_class, open_file, to_thread
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
-from fastapi.responses import ORJSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sentry_sdk import start_transaction, trace
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket
 
@@ -22,16 +23,17 @@ from config import CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OS
 
 INDEX_REDIRECT = RedirectResponse('/', status_code=status.HTTP_302_FOUND)
 
-app = FastAPI(default_response_class=ORJSONResponse)
+app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=INSTANCE_SECRET, max_age=31536000)  # 1 year
 app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
 templates = Jinja2Templates(directory='templates')
 
-user_cache = TTLCache(maxsize=1024, ttl=3600)  # 1 hour cache
+user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
 active_ws = defaultdict(lambda: anyio.Semaphore(CONNECTION_LIMIT))
 
 
+@trace
 async def fetch_user_details(request: Request) -> dict | None:
     if 'oauth_token' not in request.session:
         return None
@@ -140,8 +142,11 @@ async def websocket(ws: WebSocket):
     try:
         while True:
             args = await ws.receive_json()
-            last_message = await main(ws, args)
-            await ws.send_json({'message': last_message, 'last': True})
+
+            with start_transaction(op='websocket', name='/ws'):
+                last_message = await main(ws, args)
+                await ws.send_json({'message': last_message, 'last': True})
+
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -150,6 +155,7 @@ async def websocket(ws: WebSocket):
         semaphore.release()
 
 
+@trace
 async def main(ws: WebSocket, args: dict) -> str:
     for required_arg in (
         'changesets',
@@ -193,41 +199,42 @@ async def main(ws: WebSocket, args: dict) -> str:
     exitcode = None
 
     with fail_after(300), r, w:  # 5 minutes
-        async with anyio.create_task_group() as tg:
 
-            async def process_task():
-                nonlocal exitcode
+        @trace
+        async def process_task():
+            nonlocal exitcode
 
-                proc = Process(
-                    target=revert_worker,
-                    kwargs={
-                        'conn': w,
-                        'env': {
-                            'OSM_REVERT_VERSION_DATE': VERSION_DATE,
-                            'OSM_REVERT_WEBSITE': os.getenv('OSM_REVERT_WEBSITE', ''),
-                        },
-                        'changeset_ids': changeset_ids,
-                        'comment': comment,
-                        'oauth_token': oauth_token,
-                        'discussion': discussion,
-                        'discussion_target': discussion_target,
-                        'print_osc': print_osc,
-                        'query_filter': query_filter,
-                        'fix_parents': fix_parents,
+            proc = Process(
+                target=revert_worker,
+                kwargs={
+                    'conn': w,
+                    'env': {
+                        'OSM_REVERT_VERSION_DATE': VERSION_DATE,
+                        'OSM_REVERT_WEBSITE': os.getenv('OSM_REVERT_WEBSITE', ''),
                     },
-                )
+                    'changeset_ids': changeset_ids,
+                    'comment': comment,
+                    'oauth_token': oauth_token,
+                    'discussion': discussion,
+                    'discussion_target': discussion_target,
+                    'print_osc': print_osc,
+                    'query_filter': query_filter,
+                    'fix_parents': fix_parents,
+                },
+            )
 
-                proc.start()
+            proc.start()
 
-                try:
-                    await to_thread.run_sync(proc.join, cancellable=True)
-                except get_cancelled_exc_class():
-                    proc.kill()
-                    raise
+            try:
+                await to_thread.run_sync(proc.join, cancellable=True)
+            except get_cancelled_exc_class():
+                proc.kill()
+                raise
 
-                w.send_bytes(b'EOF\n')
-                exitcode = proc.exitcode
+            w.send_bytes(b'EOF\n')
+            exitcode = proc.exitcode
 
+        async with create_task_group() as tg:
             tg.start_soon(process_task)
 
             async with await open_file(r.fileno(), closefd=False) as stdout:
