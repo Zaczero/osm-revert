@@ -1,9 +1,8 @@
 import os
 
 import sentry_sdk
-from sentry_sdk.integrations.asyncio import AsyncioIntegration
 
-VERSION = '1.2.2'
+VERSION = '1.2.4'
 VERSION_DATE = ''
 
 if VERSION_DATE:
@@ -40,7 +39,4 @@ if not TEST_ENV:
         traces_sample_rate=0.2,
         trace_propagation_targets=None,
         profiles_sample_rate=0.2,
-        integrations=[
-            AsyncioIntegration(),
-        ],
     )

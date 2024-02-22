@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sentry_sdk import start_transaction, trace
+from sentry_sdk import trace
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket
 
@@ -142,10 +142,8 @@ async def websocket(ws: WebSocket):
     try:
         while True:
             args = await ws.receive_json()
-
-            with start_transaction(op='websocket', name='/ws'):
-                last_message = await main(ws, args)
-                await ws.send_json({'message': last_message, 'last': True})
+            last_message = await main(ws, args)
+            await ws.send_json({'message': last_message, 'last': True})
 
     except WebSocketDisconnect:
         pass
