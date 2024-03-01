@@ -15,19 +15,26 @@ from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sentry_sdk import trace
+from sentry_sdk import capture_exception, trace
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket
 
-from config import CONNECTION_LIMIT, INSTANCE_SECRET, OSM_CLIENT, OSM_SCOPES, OSM_SECRET, USER_AGENT, VERSION_DATE
-
-INDEX_REDIRECT = RedirectResponse('/', status_code=status.HTTP_302_FOUND)
+from config import (
+    CONNECTION_LIMIT,
+    INSTANCE_SECRET,
+    OSM_CLIENT,
+    OSM_SCOPES,
+    OSM_SECRET,
+    TEST_ENV,
+    USER_AGENT,
+    VERSION_DATE,
+)
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=INSTANCE_SECRET, max_age=31536000)  # 1 year
 app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
-templates = Jinja2Templates(directory='templates')
+templates = Jinja2Templates(directory='templates', auto_reload=TEST_ENV)
 
 user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
 active_ws = defaultdict(lambda: anyio.Semaphore(CONNECTION_LIMIT))
@@ -70,9 +77,9 @@ async def fetch_user_details(request: Request) -> dict | None:
 @app.post('/')
 async def index(request: Request):
     if user := await fetch_user_details(request):
-        return templates.TemplateResponse('authorized.jinja2', {'request': request, 'user': user})
+        return templates.TemplateResponse(request, 'authorized.jinja2', {'user': user})
     else:
-        return templates.TemplateResponse('index.jinja2', {'request': request})
+        return templates.TemplateResponse(request, 'index.jinja2')
 
 
 @app.post('/login')
@@ -85,7 +92,7 @@ async def login(request: Request):
         authorization_url, state = http.create_authorization_url('https://www.openstreetmap.org/oauth2/authorize')
 
     request.session['oauth_state'] = state
-    return RedirectResponse(authorization_url, status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(authorization_url, status.HTTP_303_SEE_OTHER)
 
 
 @app.get('/callback')
@@ -108,13 +115,13 @@ async def callback(request: Request):
         )
 
     request.session['oauth_token'] = token
-    return INDEX_REDIRECT
+    return RedirectResponse('/', status.HTTP_302_FOUND)
 
 
 @app.post('/logout')
 async def logout(request: Request):
     request.session.pop('oauth_token', None)
-    return INDEX_REDIRECT
+    return RedirectResponse('/', status.HTTP_302_FOUND)
 
 
 @app.websocket('/ws')
@@ -148,6 +155,7 @@ async def websocket(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        capture_exception(e)
         await ws.close(1011, str(e))
     finally:
         semaphore.release()

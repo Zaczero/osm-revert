@@ -3,7 +3,7 @@
 let
   # Currently using nixpkgs-23.11-darwin
   # Update with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/e0da498ad77ac8909a980f07eff060862417ccf7.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/1f50575dc92e39cdec74ab832987f41a57de7f68.tar.gz") { };
 
   libraries' = with pkgs; [
     # Base libraries
@@ -14,7 +14,8 @@ let
   wrappedPython = with pkgs; (symlinkJoin {
     name = "python";
     paths = [
-      python312
+      # Enable Python optimizations when in production
+      (if isDevelopment then python312 else python312.override { enableOptimizations = true; })
     ];
     buildInputs = [ makeWrapper ];
     postBuild = ''

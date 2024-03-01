@@ -3,7 +3,7 @@
 let
   # Currently using nixpkgs-23.11-darwin
   # Update with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/e0da498ad77ac8909a980f07eff060862417ccf7.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/1f50575dc92e39cdec74ab832987f41a57de7f68.tar.gz") { };
 
   libraries' = with pkgs; [
     # Base libraries
@@ -13,9 +13,7 @@ let
   # Wrap Python to override LD_LIBRARY_PATH
   wrappedPython = with pkgs; (symlinkJoin {
     name = "python";
-    paths = [
-      python312
-    ];
+    paths = [ python312 ];
     buildInputs = [ makeWrapper ];
     postBuild = ''
       wrapProgram "$out/bin/python3.12" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath libraries'}"
