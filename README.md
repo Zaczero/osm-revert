@@ -1,4 +1,4 @@
-# <img height="24" src="https://github.com/Zaczero/osm-revert/blob/main/icon/osm-revert.png?raw=true" alt="🗺️"> osm-revert
+# <img height="24" src="https://github.com/Zaczero/osm-revert/blob/main/web/static/img/favicon/256.webp?raw=true" alt="🗺️"> osm-revert
 
 ![Python version](https://shields.monicz.dev/badge/python-v3.12-blue)
 [![Project license](https://shields.monicz.dev/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
