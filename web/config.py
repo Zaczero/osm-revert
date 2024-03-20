@@ -2,7 +2,7 @@ import os
 
 import sentry_sdk
 
-VERSION = '1.2.5'
+VERSION = '1.2.6'
 VERSION_DATE = ''
 
 if VERSION_DATE:
