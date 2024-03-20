@@ -1,9 +1,9 @@
 { isDevelopment ? true }:
 
 let
-  # Currently using nixpkgs-23.11-darwin
+  # Currently using nixpkgs-unstable
   # Update with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/1f50575dc92e39cdec74ab832987f41a57de7f68.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/7872526e9c5332274ea5932a0c3270d6e4724f3b.tar.gz") { };
 
   libraries' = with pkgs; [
     # Base libraries
@@ -67,16 +67,20 @@ let
   ];
 
   shell' = with pkgs; lib.optionalString isDevelopment ''
-    [ ! -e .venv/bin/python ] && [ -h .venv/bin/python ] && rm -r .venv
+    current_python=$(readlink -e .venv/bin/python || echo "")
+    current_python=''${current_python%/bin/*}
+    [ "$current_python" != "${wrappedPython}" ] && rm -r .venv
 
     echo "Installing Python dependencies"
     export POETRY_VIRTUALENVS_IN_PROJECT=1
+    poetry env use "${wrappedPython}/bin/python"
     poetry install --no-root --compile
 
     echo "Activating Python virtual environment"
     source .venv/bin/activate
 
     # Development environment variables
+    export PYTHONNOUSERSITE=1
     export INSTANCE_SECRET="development-secret"
     export TEST_ENV=1
 
@@ -91,8 +95,7 @@ let
     make-bundle
   '';
 in
-pkgs.mkShell
-{
-  buildInputs = libraries' ++ packages';
+pkgs.mkShell {
+  buildInputs = packages';
   shellHook = shell';
 }

@@ -5,6 +5,16 @@ abbr {
     font-size: .8em;
 }
 
+button img {
+    position: relative;
+    top: -0.05em;
+}
+
+.header img {
+    position: relative;
+    top: -0.05em;
+}
+
 .required::after {
     content: '*';
     color: #e00;

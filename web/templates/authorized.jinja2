@@ -2,7 +2,10 @@
 {% block body %}
 
 <div class="d-flex justify-content-between mb-2">
-    <h4 class="mb-0">🗺️ osm-revert</h4>
+    <h4 class="header mb-0">
+        <img src="/static/img/favicon/256.webp" height="24" alt="osm-revert logo">
+        osm-revert
+    </h4>
 
     <div class="d-flex align-items-center">
         {% if user.img.href %}
@@ -11,7 +14,7 @@
 
         <h5 class="ms-1 mb-0">{{ user.display_name }}</h5>
 
-        <form action="/logout" method="post">
+        <form method="POST" action="/logout">
             <input class="btn btn-sm btn-light ms-2" type="submit" value="Logout">
         </form>
     </div>

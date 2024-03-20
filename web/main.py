@@ -35,7 +35,6 @@ app.add_middleware(SessionMiddleware, secret_key=INSTANCE_SECRET, max_age=315360
 app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
 templates = Jinja2Templates(directory='templates', auto_reload=TEST_ENV)
-
 user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
 active_ws = defaultdict(lambda: anyio.Semaphore(CONNECTION_LIMIT))
 

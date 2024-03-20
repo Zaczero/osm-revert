@@ -1,18 +1,29 @@
 {% extends '_base.jinja2' %}
+{% block head %}
+<meta name="description" content="OSM-Revert is a fast OpenStreetMap changeset reverter. {#
+    #}Noticed a mistake in your or someone else's changes? {#
+    #}Quickly undo any changesets with automatic conflict resolution. {#
+    #}Optionally perform partial reverts, reverting only specific kinds of objects.">
+{% endblock %}
 {% block body %}
 
-<h4>🗺️ osm-revert</h4>
+<h4 class="header">
+    <img src="/static/img/favicon/256.webp" height="24" alt="osm-revert logo">
+    osm-revert
+</h4>
 
 <ul>
     <li>
         <b>Faster</b><br>
-        This reverter uses <a href="https://overpass-api.de" target="_blank">Overpass</a> to reduce the amount of
-        API calls.
+        This reverter uses
+        <a href="https://overpass-api.de" target="_blank">Overpass</a>
+        to reduce the amount of API calls.
     </li>
     <li>
         <b>Smarter</b><br>
-        This reverter uses <a href="https://github.com/google/diff-match-patch" target="_blank">Google's
-            diff-match-patch</a> library to automatically resolve conflicts.
+        This reverter uses
+        <a href="https://github.com/google/diff-match-patch" target="_blank">Google's diff-match-patch</a>
+        library to automatically resolve conflicts.
     </li>
     <li>
         <b>Limitless</b><br>
@@ -20,9 +31,9 @@
     </li>
 </ul>
 
-<form class="text-center" action="/login" method="post">
+<form class="text-center" method="POST" action="/login">
     <button class="btn btn-primary" type="submit">
-        <img src="/static/img/openstreetmap.svg" height="22" alt="OpenStreetMap logo">
+        <img src="/static/img/brands/openstreetmap.webp" height="22" alt="OpenStreetMap logo">
         Login with <b>OpenStreetMap</b>
     </button>
 </form>
