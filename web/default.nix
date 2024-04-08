@@ -52,6 +52,8 @@ with pkgs; dockerTools.buildLayeredImage {
       "300"
       "--forwarded-allow-ips"
       "*"
+      "--access-logfile"
+      "-"
     ];
   };
 }
