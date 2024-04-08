@@ -15,6 +15,9 @@ from osm_revert.utils import is_osm_moderator
 
 
 def merge_and_sort_diffs(diffs: list[dict[str, list[DiffEntry]]]) -> dict[str, list[DiffEntry]]:
+    if not diffs:
+        return {}
+
     result = diffs[0]
 
     for diff in diffs[1:]:
@@ -260,7 +263,7 @@ def main(
 if __name__ == '__main__':
     # For debugging
     main(
-        changeset_ids=[142945620],
+        changeset_ids=[149739087],
         comment='revert',
         print_osc=True,
         query_filter='',
