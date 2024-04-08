@@ -2,7 +2,7 @@ import os
 
 import sentry_sdk
 
-VERSION = '1.2.6'
+VERSION = '1.2.7'
 VERSION_DATE = ''
 
 if VERSION_DATE:
@@ -36,7 +36,7 @@ if not TEST_ENV:
         dsn='https://1351a3b285a2942f67f0a13daa66ca99@sentry.monicz.dev/5',
         release=VERSION,
         enable_tracing=True,
-        traces_sample_rate=0.2,
+        traces_sample_rate=0.5,
         trace_propagation_targets=None,
-        profiles_sample_rate=0.2,
+        profiles_sample_rate=0.3,
     )

@@ -1,21 +1,20 @@
-import io
 import os
 import re
 import sys
 from collections import defaultdict
 from collections.abc import Sequence
+from io import StringIO, TextIOWrapper
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 
-import anyio
-from anyio import WouldBlock, create_task_group, fail_after, get_cancelled_exc_class, open_file, to_thread
+from anyio import Semaphore, WouldBlock, create_task_group, fail_after, get_cancelled_exc_class, open_file, to_thread
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sentry_sdk import capture_exception, trace
+from sentry_sdk import capture_exception, capture_message, set_context, trace
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket
 
@@ -36,7 +35,7 @@ app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
 templates = Jinja2Templates(directory='templates', auto_reload=TEST_ENV)
 user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
-active_ws = defaultdict(lambda: anyio.Semaphore(CONNECTION_LIMIT))
+active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
 
 
 @trace
@@ -201,7 +200,25 @@ async def main(ws: WebSocket, args: dict) -> str:
     print_osc = not upload
 
     r, w = Pipe(duplex=False)
+    kwargs = {
+        'conn': w,
+        'env': {
+            'OSM_REVERT_VERSION_DATE': VERSION_DATE,
+            'OSM_REVERT_WEBSITE': os.getenv('OSM_REVERT_WEBSITE', ''),
+        },
+        'changeset_ids': changeset_ids,
+        'comment': comment,
+        'oauth_token': oauth_token,
+        'discussion': discussion,
+        'discussion_target': discussion_target,
+        'print_osc': print_osc,
+        'query_filter': query_filter,
+        'fix_parents': fix_parents,
+    }
+    messages = StringIO()
     exitcode = None
+
+    set_context('revert', kwargs)
 
     with fail_after(300), r, w:  # 5 minutes
 
@@ -211,21 +228,7 @@ async def main(ws: WebSocket, args: dict) -> str:
 
             proc = Process(
                 target=revert_worker,
-                kwargs={
-                    'conn': w,
-                    'env': {
-                        'OSM_REVERT_VERSION_DATE': VERSION_DATE,
-                        'OSM_REVERT_WEBSITE': os.getenv('OSM_REVERT_WEBSITE', ''),
-                    },
-                    'changeset_ids': changeset_ids,
-                    'comment': comment,
-                    'oauth_token': oauth_token,
-                    'discussion': discussion,
-                    'discussion_target': discussion_target,
-                    'print_osc': print_osc,
-                    'query_filter': query_filter,
-                    'fix_parents': fix_parents,
-                },
+                kwargs=kwargs,
             )
 
             proc.start()
@@ -242,11 +245,15 @@ async def main(ws: WebSocket, args: dict) -> str:
         async with create_task_group() as tg:
             tg.start_soon(process_task)
 
-            async with await open_file(r.fileno(), closefd=False) as stdout:
-                async for line in stdout:
+            async with await open_file(r.fileno(), closefd=False) as output:
+                async for line in output:
                     if line.endswith('EOF\n'):
                         break
                     await ws.send_json({'message': line.rstrip(' \n')})
+                    messages.write(line)
+
+    if exitcode != 0:
+        capture_message(f'Failed revert ({exitcode})\n' + messages.getvalue(), level='error')
 
     return f'Exit code: {exitcode}'
 
@@ -264,8 +271,8 @@ def revert_worker(
     query_filter: str,
     fix_parents: bool,
 ) -> int:
-    # Redirect stdout to the pipe
-    sys.stdout = io.TextIOWrapper(os.fdopen(conn.fileno(), 'wb', buffering=0), write_through=True)
+    # Redirect stdout/stderr to the pipe
+    sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', buffering=0), write_through=True)
 
     for k, v in env.items():
         os.environ[k] = v

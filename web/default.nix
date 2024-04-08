@@ -40,7 +40,18 @@ with pkgs; dockerTools.buildLayeredImage {
       "PYTHONDONTWRITEBYTECODE=1"
       "OSM_REVERT_VERSION_SUFFIX=docker-ui"
     ];
-    Entrypoint = [ "python" "-m" "uvicorn" "main:app" ];
-    Cmd = [ "--host" "0.0.0.0" ];
+    Entrypoint = [ "python" "-m" "gunicorn" "main:app" ];
+    Cmd = [
+      "--bind"
+      "0.0.0.0:8000"
+      "--worker-class"
+      "uvicorn.workers.UvicornWorker"
+      "--graceful-timeout"
+      "5"
+      "--keep-alive"
+      "300"
+      "--forwarded-allow-ips"
+      "*"
+    ];
   };
 }

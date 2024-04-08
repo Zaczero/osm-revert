@@ -3,10 +3,9 @@
 let
   # Currently using nixpkgs-unstable
   # Update with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/7872526e9c5332274ea5932a0c3270d6e4724f3b.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/0d28066770464d19d637f6e8e42e8688420b6ac6.tar.gz") { };
 
   libraries' = with pkgs; [
-    # Base libraries
     stdenv.cc.cc.lib
   ];
 
@@ -24,9 +23,10 @@ let
   });
 
   packages' = with pkgs; [
-    # Base packages
     wrappedPython
     esbuild
+    poetry
+    ruff
 
     # Scripts
     # -- Misc
@@ -46,16 +46,9 @@ let
       esbuild static/css/style.css --bundle --minify --sourcemap --charset=utf8 --outfile=static/css/style.$HASH.css && \
       find templates -type f -exec sed -i 's|href="/static/css/style.css"|href="/static/css/style.'$HASH'.css"|g' {} \;
     '')
-  ] ++ lib.optionals isDevelopment [
-    # Development packages
-    poetry
-    ruff
-
-    # Scripts
-    # -- Misc
     (writeShellScriptBin "nixpkgs-update" ''
       set -e
-      hash=$(git ls-remote https://github.com/NixOS/nixpkgs nixpkgs-23.11-darwin | cut -f 1)
+      hash=$(git ls-remote https://github.com/NixOS/nixpkgs nixpkgs-unstable | cut -f 1)
       sed -i -E "s|/nixpkgs/archive/[0-9a-f]{40}\.tar\.gz|/nixpkgs/archive/$hash.tar.gz|" shell.nix
       echo "Nixpkgs updated to $hash"
     '')
@@ -81,6 +74,7 @@ let
 
     # Development environment variables
     export PYTHONNOUSERSITE=1
+    export TZ=UTC
     export INSTANCE_SECRET="development-secret"
     export TEST_ENV=1
 
@@ -88,7 +82,7 @@ let
       echo "Loading .env file"
       set -o allexport
       source .env set
-      +o allexport
+      set +o allexport
     fi
   '' + lib.optionalString (!isDevelopment) ''
     make-version
