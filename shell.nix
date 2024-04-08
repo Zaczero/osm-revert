@@ -3,10 +3,9 @@
 let
   # Currently using nixpkgs-unstable
   # Update with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/7872526e9c5332274ea5932a0c3270d6e4724f3b.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/0d28066770464d19d637f6e8e42e8688420b6ac6.tar.gz") { };
 
   libraries' = with pkgs; [
-    # Base libraries
     stdenv.cc.cc.lib
   ];
 
@@ -21,10 +20,7 @@ let
   });
 
   packages' = with pkgs; [
-    # Base packages
     wrappedPython
-  ] ++ lib.optionals isDevelopment [
-    # Development packages
     poetry
     ruff
 
@@ -51,12 +47,13 @@ let
 
     # Development environment variables
     export PYTHONNOUSERSITE=1
+    export TZ=UTC
 
     if [ -f .env ]; then
       echo "Loading .env file"
       set -o allexport
       source .env set
-      +o allexport
+      set +o allexport
     fi
   '';
 in
