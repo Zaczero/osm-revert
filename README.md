@@ -1,8 +1,8 @@
 # <img height="24" src="https://github.com/Zaczero/osm-revert/blob/main/web/static/img/favicon/256.webp?raw=true" alt="🗺️"> osm-revert
 
 ![Python version](https://shields.monicz.dev/badge/python-v3.12-blue)
-[![Project license](https://shields.monicz.dev/github/license/Zaczero/osm-revert)](https://github.com/Zaczero/osm-revert/blob/main/LICENSE)
 [![Support my work](https://shields.monicz.dev/badge/%E2%99%A5%EF%B8%8F%20Support%20my%20work-purple)](https://monicz.dev/#support-my-work)
+[![Liberapay Patrons](https://shields.monicz.dev/liberapay/patrons/Zaczero?logo=liberapay)](https://liberapay.com/Zaczero/)
 [![GitHub repo stars](https://shields.monicz.dev/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
 
 The next generation OpenStreetMap changeset revert tool.
@@ -30,20 +30,10 @@ This reverter has no arbitrary limits on the changeset size.
 
 ## Footer
 
-### Contact me
-
-<https://monicz.dev/#get-in-touch>
-
-### Support my work
-
-<https://monicz.dev/#support-my-work>
-
 ### Credits
 
 This project was inspired by the work of [Zverik](https://github.com/Zverik) and his [RevertUI](https://github.com/Zverik/RevertUI).
 
-### License
+### Contact me
 
-This project is licensed under the GNU Affero General Public License v3.0.
-
-The complete license text can be accessed in the repository at [LICENSE](https://github.com/Zaczero/osm-revert/blob/main/LICENSE).
+<https://monicz.dev/#get-in-touch>

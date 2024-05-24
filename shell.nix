@@ -3,7 +3,7 @@
 let
   # Currently using nixpkgs-unstable
   # Update with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/0d28066770464d19d637f6e8e42e8688420b6ac6.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/3f316d2a50699a78afe5e77ca486ad553169061e.tar.gz") { };
 
   libraries' = with pkgs; [
     stdenv.cc.cc.lib

@@ -1,7 +1,7 @@
 import html
 import re
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from itertools import chain, pairwise
 
 import xmltodict
@@ -14,7 +14,7 @@ from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 def parse_timestamp(timestamp: str) -> int:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
-    return int(datetime.strptime(timestamp, date_format).timestamp())
+    return int(datetime.strptime(timestamp, date_format).replace(tzinfo=UTC).timestamp())
 
 
 def get_bbox(changeset: dict) -> str:
@@ -31,7 +31,8 @@ def get_bbox(changeset: dict) -> str:
 
 def get_old_date(timestamp: str) -> str:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
-    created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
+    date = datetime.strptime(timestamp, date_format).replace(tzinfo=UTC)
+    created_at_minus_one = (date - timedelta(seconds=1)).strftime(date_format)
 
     return f'[date:"{created_at_minus_one}"]'
 
@@ -43,7 +44,8 @@ def get_new_date(timestamp: str) -> str:
 def get_changeset_adiff(timestamp: str) -> str:
     if REVERT_TO_DATE is None:
         date_format = '%Y-%m-%dT%H:%M:%SZ'
-        created_at_minus_one = (datetime.strptime(timestamp, date_format) - timedelta(seconds=1)).strftime(date_format)
+        date = datetime.strptime(timestamp, date_format).replace(tzinfo=UTC)
+        created_at_minus_one = (date - timedelta(seconds=1)).strftime(date_format)
         return f'[adiff:"{created_at_minus_one}","{timestamp}"]'
     else:
         return f'[adiff:"{REVERT_TO_DATE}","{timestamp}"]'
