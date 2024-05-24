@@ -1,10 +1,7 @@
 { pkgs ? import <nixpkgs> { }, ... }:
 
 let
-  shell = import ./shell.nix {
-    isDevelopment = false;
-  };
-
+  shell = import ./shell.nix { isDevelopment = false; };
   python-venv = pkgs.buildEnv {
     name = "python-venv";
     paths = [
@@ -18,7 +15,6 @@ in
 with pkgs; dockerTools.buildLayeredImage {
   name = "docker.monicz.dev/osm-revert-ui";
   tag = "latest";
-  maxLayers = 10;
 
   contents = shell.buildInputs ++ [ python-venv ];
 
