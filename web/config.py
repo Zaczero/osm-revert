@@ -2,7 +2,7 @@ import os
 
 import sentry_sdk
 
-VERSION = '1.2.8'
+VERSION = '1.2.9'
 VERSION_DATE = ''
 
 if VERSION_DATE:
@@ -11,7 +11,7 @@ if VERSION_DATE:
 CREATED_BY = f'osm-revert-ui {VERSION}'
 USER_AGENT = f'osm-revert-ui/{VERSION} (+https://github.com/Zaczero/osm-revert)'
 
-INSTANCE_SECRET = os.getenv('INSTANCE_SECRET')
+INSTANCE_SECRET = os.environ['INSTANCE_SECRET']
 
 TEST_ENV = os.getenv('TEST_ENV', '0').strip().lower() in ('1', 'true', 'yes')
 
@@ -31,9 +31,9 @@ if not OSM_CLIENT or not OSM_SECRET:
 
 CONNECTION_LIMIT = int(os.getenv('CONNECTION_LIMIT', 2))
 
-if not TEST_ENV:
+if SENTRY_DSN := os.getenv('SENTRY_DSN'):
     sentry_sdk.init(
-        dsn='https://1351a3b285a2942f67f0a13daa66ca99@sentry.monicz.dev/5',
+        dsn=SENTRY_DSN,
         release=VERSION,
         enable_tracing=True,
         traces_sample_rate=0.5,

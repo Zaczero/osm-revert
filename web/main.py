@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sentry_sdk import capture_exception, capture_message, set_context, trace
+from sentry_sdk import capture_exception, set_context, trace
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket
 
@@ -251,9 +251,6 @@ async def main(ws: WebSocket, args: dict) -> str:
                         break
                     await ws.send_json({'message': line.rstrip(' \n')})
                     messages.write(line)
-
-    if exitcode != 0:
-        capture_message(f'Failed revert ({exitcode})\n' + messages.getvalue(), level='error')
 
     return f'Exit code: {exitcode}'
 
