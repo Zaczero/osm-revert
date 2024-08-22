@@ -225,7 +225,7 @@ def main(
 
         print(f'🌍️ Uploading {invert_size} change{"s" if invert_size > 1 else ""}')
 
-        extra_args = {'changesets_count': user_edits + 1, 'created_by': CREATED_BY, 'website': WEBSITE}
+        extra_args = {'changesets_count': user_edits + 1, 'created_by': CREATED_BY, 'host': WEBSITE}
 
         if len(changeset_ids) == 1:
             extra_args['id'] = ';'.join(f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids)
