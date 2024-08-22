@@ -1,6 +1,6 @@
 import os
 
-VERSION = '1.3.10'
+VERSION = '1.3.11'
 
 if version_date := os.getenv('OSM_REVERT_VERSION_DATE'):
     VERSION += f'.{version_date}'
@@ -25,7 +25,7 @@ CHANGESETS_LIMIT_CONFIG = {
 
 TAG_MAX_LENGTH = 255
 TAG_PREFIX = 'revert'
-NO_TAG_PREFIX = {'comment', 'changesets_count', 'created_by', 'website'}
+NO_TAG_PREFIX = {'comment', 'changesets_count', 'created_by', 'host', 'website'}
 
 XML_HEADERS = {'Content-Type': 'text/xml; charset=utf-8'}
 
