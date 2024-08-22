@@ -162,7 +162,7 @@ class OsmApi:
 
         return info | diff
 
-    def upload_diff(self, diff: dict, comment: str, extra_tags: dict[str, str] | None = None) -> str | None:
+    def upload_diff(self, diff: dict, comment: str, extra_tags: dict[str, str]) -> str | None:
         if 'comment' in extra_tags:
             raise ValueError('comment is a reserved tag')
 
