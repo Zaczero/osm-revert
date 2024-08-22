@@ -1,9 +1,9 @@
 # <img height="24" src="https://github.com/Zaczero/osm-revert/blob/main/web/static/img/favicon/256.webp?raw=true" alt="🗺️"> osm-revert
 
 ![Python version](https://shields.monicz.dev/badge/python-v3.12-blue)
-[![Support my work](https://shields.monicz.dev/badge/%E2%99%A5%EF%B8%8F%20Support%20my%20work-purple)](https://monicz.dev/#support-my-work)
-[![Liberapay Patrons](https://shields.monicz.dev/liberapay/patrons/Zaczero?logo=liberapay)](https://liberapay.com/Zaczero/)
-[![GitHub repo stars](https://shields.monicz.dev/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
+[![Liberapay Patrons](https://shields.monicz.dev/liberapay/patrons/Zaczero?logo=liberapay&label=Patrons)](https://liberapay.com/Zaczero/)
+[![GitHub Sponsors](https://shields.monicz.dev/github/sponsors/Zaczero?logo=github&label=Sponsors&color=%23db61a2)](https://github.com/sponsors/Zaczero)
+[![GitHub Stars](https://shields.monicz.dev/github/stars/Zaczero/osm-revert?style=social)](https://github.com/Zaczero/osm-revert)
 
 The next generation OpenStreetMap changeset revert tool.
 
