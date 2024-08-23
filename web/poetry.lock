@@ -646,7 +646,7 @@ files = [
 
 [[package]]
 name = "osm-revert"
-version = "1.3.11"
+version = "1.3.12"
 description = ""
 optional = false
 python-versions = "^3.12"
@@ -1269,4 +1269,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "ddc53e457b0ef730f90c6897caea54fc290c5e7e728dcb8a19ed146c36896ce1"
+content-hash = "c2ff9c5bab1edc6e17beb4e99b79d6b52359b51c301b6b75355417af82648743"

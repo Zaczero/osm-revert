@@ -1,13 +1,14 @@
+import asyncio
 import os
 import re
 import sys
+from asyncio import Semaphore, get_running_loop, timeout
 from collections import defaultdict
 from collections.abc import Sequence
-from io import StringIO, TextIOWrapper
+from io import TextIOWrapper
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
 
-from anyio import Semaphore, WouldBlock, create_task_group, fail_after, get_cancelled_exc_class, open_file, to_thread
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
@@ -138,25 +139,21 @@ async def websocket(ws: WebSocket):
 
     semaphore = active_ws[session_id]
 
-    try:
-        semaphore.acquire_nowait()
-    except WouldBlock:
+    if semaphore.locked():
         await ws.close(1008, 'Too many simultaneous connections for this user')
         return
 
-    try:
-        while True:
-            args = await ws.receive_json()
-            last_message = await main(ws, args)
-            await ws.send_json({'message': last_message, 'last': True})
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        capture_exception(e)
-        await ws.close(1011, str(e))
-    finally:
-        semaphore.release()
+    async with semaphore:
+        try:
+            while True:
+                args = await ws.receive_json()
+                last_message = await main(ws, args)
+                await ws.send_json({'message': last_message, 'last': True})
+        except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            capture_exception(e)
+            await ws.close(1011, str(e))
 
 
 @trace
@@ -215,44 +212,41 @@ async def main(ws: WebSocket, args: dict) -> str:
         'query_filter': query_filter,
         'fix_parents': fix_parents,
     }
-    messages = StringIO()
-    exitcode = None
-
     set_context('revert', kwargs)
+    loop = get_running_loop()
 
-    with fail_after(300), r, w:  # 5 minutes
-
-        @trace
-        async def process_task():
-            nonlocal exitcode
-
-            proc = Process(
-                target=revert_worker,
-                kwargs=kwargs,
-            )
-
+    @trace
+    async def process_task():
+        with w:
+            proc = Process(target=revert_worker, kwargs=kwargs)
             proc.start()
 
             try:
-                await to_thread.run_sync(proc.join, cancellable=True)
-            except get_cancelled_exc_class():
-                proc.kill()
-                raise
+                async with timeout(1800):  # 30 minutes
+                    print('JOIN...')
+                    await loop.run_in_executor(None, proc.join)
+                    return proc.exitcode
+            finally:
+                print('FINALLY')
+                if proc.is_alive():
+                    proc.terminate()
+                    await loop.run_in_executor(None, proc.join)
 
-            w.send_bytes(b'EOF\n')
-            exitcode = proc.exitcode
+    task = asyncio.create_task(process_task())
 
-        async with create_task_group() as tg:
-            tg.start_soon(process_task)
-
-            async with await open_file(r.fileno(), closefd=False) as output:
-                async for line in output:
-                    if line.endswith('EOF\n'):
-                        break
-                    await ws.send_json({'message': line.rstrip(' \n')})
-                    messages.write(line)
-
-    return f'Exit code: {exitcode}'
+    try:
+        with r:
+            while True:
+                line: bytes = await loop.run_in_executor(None, r.recv_bytes)
+                print('GOT', line)
+                message = line.decode().rstrip(' \n')
+                if message:
+                    await ws.send_json({'message': message})
+    except EOFError:
+        exitcode = await task
+        return f'Exit code: {exitcode}'
+    finally:
+        task.cancel()
 
 
 def revert_worker(
@@ -268,9 +262,10 @@ def revert_worker(
     query_filter: str,
     fix_parents: bool,
 ) -> int:
-    # Redirect stdout/stderr to the pipe
-    sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', buffering=0), write_through=True)
+    # redirect stdout/stderr to the pipe
+    sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', 0, closefd=False), write_through=True)
 
+    # configure environment variables
     for k, v in env.items():
         os.environ[k] = v
 
