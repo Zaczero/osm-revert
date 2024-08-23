@@ -1,5 +1,4 @@
 import xmltodict
-from authlib.integrations.httpx_client import OAuth2Auth
 
 from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX, XML_HEADERS
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
@@ -92,15 +91,11 @@ def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
 
 
 class OsmApi:
-    def __init__(self, *, username: str | None = None, password: str | None = None, oauth_token: dict | None = None):
-        if oauth_token:
-            auth = OAuth2Auth(oauth_token)
-        elif username and password:
-            auth = (username, password)
-        else:
-            raise Exception('Authorization is required')
-
-        self._http = get_http_client('https://api.openstreetmap.org/api', auth=auth)
+    def __init__(self, osm_token: str):
+        self._http = get_http_client(
+            'https://api.openstreetmap.org/api',
+            headers={'Authorization': f'Bearer {osm_token}'},
+        )
 
     @retry_exponential()
     def get_changeset_max_size(self) -> int:

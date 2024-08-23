@@ -1,38 +1,38 @@
+import asyncio
 import os
 import re
 import sys
+from asyncio import Semaphore, get_running_loop, timeout
 from collections import defaultdict
 from collections.abc import Sequence
-from io import StringIO, TextIOWrapper
+from io import TextIOWrapper
 from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection
+from typing import Annotated
+from urllib.parse import urlencode
 
-from anyio import Semaphore, WouldBlock, create_task_group, fail_after, get_cancelled_exc_class, open_file, to_thread
-from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import TTLCache
-from fastapi import FastAPI, HTTPException, Request, WebSocketDisconnect, status
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocketDisconnect, status
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sentry_sdk import capture_exception, set_context, trace
-from starlette.middleware.sessions import SessionMiddleware
 from starlette.websockets import WebSocket
 
 from config import (
     CONNECTION_LIMIT,
-    INSTANCE_SECRET,
     OSM_CLIENT,
     OSM_SCOPES,
     OSM_SECRET,
     TEST_ENV,
-    USER_AGENT,
     VERSION_DATE,
 )
+from utils import http
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=INSTANCE_SECRET, max_age=31536000)  # 1 year
 app.mount('/static', StaticFiles(directory='static', html=True), name='static')
 
+cookie_max_age = 31536000  # 1 year
 templates = Jinja2Templates(directory='templates', auto_reload=TEST_ENV)
 user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
 active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
@@ -40,34 +40,26 @@ active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
 
 @trace
 async def fetch_user_details(request: Request) -> dict | None:
-    if 'oauth_token' not in request.session:
-        return None
-
     try:
-        token = request.session['oauth_token']
+        access_token = request.cookies['access_token']
     except Exception:
         return None
 
-    user_cache_key = token['access_token']
-
     try:
-        return user_cache[user_cache_key]
+        return user_cache[access_token]
     except Exception:
-        async with AsyncOAuth2Client(token=token, headers={'User-Agent': USER_AGENT}) as http:
-            response = await http.get('https://api.openstreetmap.org/api/0.6/user/details.json')
-
-        if response.status_code != 200:
-            return None
-
-        try:
-            user = response.json()['user']
-        except Exception:
-            return None
+        async with http().get(
+            'https://api.openstreetmap.org/api/0.6/user/details.json',
+            headers={'Authorization': f'Bearer {access_token}'},
+        ) as r:
+            if not r.ok:
+                return None
+            user: dict = await r.json()
 
         if 'img' not in user:
             user['img'] = {'href': None}
 
-        user_cache[user_cache_key] = user
+        user_cache[access_token] = user
         return user
 
 
@@ -82,85 +74,82 @@ async def index(request: Request):
 
 @app.post('/login')
 async def login(request: Request):
-    async with AsyncOAuth2Client(
-        client_id=OSM_CLIENT,
-        scope=OSM_SCOPES,
-        redirect_uri=str(request.url_for('callback')),
-    ) as http:
-        authorization_url, state = http.create_authorization_url('https://www.openstreetmap.org/oauth2/authorize')
-
-    request.session['oauth_state'] = state
-    return RedirectResponse(authorization_url, status.HTTP_303_SEE_OTHER)
+    state = os.urandom(32).hex()
+    authorization_url = 'https://www.openstreetmap.org/oauth2/authorize?' + urlencode(
+        {
+            'client_id': OSM_CLIENT,
+            'redirect_uri': str(request.url_for('callback')),
+            'response_type': 'code',
+            'scope': OSM_SCOPES,
+            'state': state,
+        }
+    )
+    response = RedirectResponse(authorization_url, status.HTTP_303_SEE_OTHER)
+    response.set_cookie('oauth_state', state, secure=not TEST_ENV, httponly=True)
+    return response
 
 
 @app.get('/callback')
-async def callback(request: Request):
-    state = request.session.pop('oauth_state', None)
-
-    if state is None:
+async def callback(request: Request, code: Annotated[str, Query()], state: Annotated[str, Query()]):
+    cookie_state = request.cookies.get('oauth_state')
+    if cookie_state != state:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Invalid OAuth state')
 
-    async with AsyncOAuth2Client(
-        client_id=OSM_CLIENT,
-        client_secret=OSM_SECRET,
-        redirect_uri=str(request.url_for('callback')),
-        state=state,
-        headers={'User-Agent': USER_AGENT},
-    ) as http:
-        token = await http.fetch_token(
-            'https://www.openstreetmap.org/oauth2/token',
-            authorization_response=str(request.url),
-        )
+    async with http().post(
+        'https://www.openstreetmap.org/oauth2/token',
+        data={
+            'client_id': OSM_CLIENT,
+            'client_secret': OSM_SECRET,
+            'redirect_uri': str(request.url_for('callback')),
+            'grant_type': 'authorization_code',
+            'code': code,
+        },
+        raise_for_status=True,
+    ) as r:
+        access_token = (await r.json())['access_token']
 
-    request.session['oauth_token'] = token
-    return RedirectResponse('/', status.HTTP_302_FOUND)
+    response = RedirectResponse('/', status.HTTP_302_FOUND)
+    response.set_cookie('access_token', access_token, cookie_max_age, secure=not TEST_ENV, httponly=True)
+    return response
 
 
 @app.post('/logout')
-async def logout(request: Request):
-    request.session.pop('oauth_token', None)
-    return RedirectResponse('/', status.HTTP_302_FOUND)
+async def logout():
+    response = RedirectResponse('/', status.HTTP_302_FOUND)
+    response.delete_cookie('access_token')
+    return response
 
 
 @app.websocket('/ws')
 async def websocket(ws: WebSocket):
     await ws.accept()
 
-    if 'oauth_token' not in ws.session:
-        await ws.close(1008)
-        return
-
     try:
-        session_id = ws.session['oauth_token']['access_token']
+        access_token = ws.cookies['access_token']
     except Exception:
         await ws.close(1008)
         return
 
-    semaphore = active_ws[session_id]
-
-    try:
-        semaphore.acquire_nowait()
-    except WouldBlock:
+    semaphore = active_ws[access_token]
+    if semaphore.locked():
         await ws.close(1008, 'Too many simultaneous connections for this user')
         return
 
-    try:
-        while True:
-            args = await ws.receive_json()
-            last_message = await main(ws, args)
-            await ws.send_json({'message': last_message, 'last': True})
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        capture_exception(e)
-        await ws.close(1011, str(e))
-    finally:
-        semaphore.release()
+    async with semaphore:
+        try:
+            while True:
+                args = await ws.receive_json()
+                last_message = await main(ws, access_token, args)
+                await ws.send_json({'message': last_message, 'last': True})
+        except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            capture_exception(e)
+            await ws.close(1011, str(e))
 
 
 @trace
-async def main(ws: WebSocket, args: dict) -> str:
+async def main(ws: WebSocket, access_token: str, args: dict) -> str:
     for required_arg in (
         'changesets',
         'query_filter',
@@ -196,7 +185,6 @@ async def main(ws: WebSocket, args: dict) -> str:
         return '❗️ Invalid discussion target'
 
     changeset_ids = tuple(map(int, changesets))
-    oauth_token = ws.session['oauth_token']
     print_osc = not upload
 
     r, w = Pipe(duplex=False)
@@ -208,51 +196,41 @@ async def main(ws: WebSocket, args: dict) -> str:
         },
         'changeset_ids': changeset_ids,
         'comment': comment,
-        'oauth_token': oauth_token,
+        'osm_token': access_token,
         'discussion': discussion,
         'discussion_target': discussion_target,
         'print_osc': print_osc,
         'query_filter': query_filter,
         'fix_parents': fix_parents,
     }
-    messages = StringIO()
-    exitcode = None
-
     set_context('revert', kwargs)
+    loop = get_running_loop()
 
-    with fail_after(300), r, w:  # 5 minutes
-
-        @trace
-        async def process_task():
-            nonlocal exitcode
-
-            proc = Process(
-                target=revert_worker,
-                kwargs=kwargs,
-            )
-
+    @trace
+    async def process_task():
+        with w:
+            proc = Process(target=revert_worker, kwargs=kwargs)
             proc.start()
 
             try:
-                await to_thread.run_sync(proc.join, cancellable=True)
-            except get_cancelled_exc_class():
-                proc.kill()
-                raise
+                async with timeout(1800):  # 30 minutes
+                    await loop.run_in_executor(None, proc.join)
+                    return proc.exitcode
+            finally:
+                if proc.is_alive():
+                    proc.terminate()
+                    await loop.run_in_executor(None, proc.join)
 
-            w.send_bytes(b'EOF\n')
-            exitcode = proc.exitcode
+    task = asyncio.create_task(process_task())
 
-        async with create_task_group() as tg:
-            tg.start_soon(process_task)
-
-            async with await open_file(r.fileno(), closefd=False) as output:
-                async for line in output:
-                    if line.endswith('EOF\n'):
-                        break
-                    await ws.send_json({'message': line.rstrip(' \n')})
-                    messages.write(line)
-
-    return f'Exit code: {exitcode}'
+    try:
+        with r, TextIOWrapper(os.fdopen(r.fileno(), 'rb', 0, closefd=False)) as reader:
+            while line := await loop.run_in_executor(None, reader.readline):
+                await ws.send_json({'message': line.rstrip(' \n')})
+        exitcode = await task
+        return f'Exit code: {exitcode}'
+    finally:
+        task.cancel()
 
 
 def revert_worker(
@@ -261,16 +239,17 @@ def revert_worker(
     env: dict[str, str],
     changeset_ids: Sequence[int],
     comment: str,
-    oauth_token: dict,
+    osm_token: str,
     discussion: str,
     discussion_target: str,
     print_osc: bool,
     query_filter: str,
     fix_parents: bool,
 ) -> int:
-    # Redirect stdout/stderr to the pipe
-    sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', buffering=0), write_through=True)
+    # redirect stdout/stderr to the pipe
+    sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', 0, closefd=False), write_through=True)
 
+    # configure environment variables
     for k, v in env.items():
         os.environ[k] = v
 
@@ -279,7 +258,7 @@ def revert_worker(
     return osm_revert.main(
         changeset_ids=changeset_ids,
         comment=comment,
-        oauth_token=oauth_token,
+        osm_token=osm_token,
         discussion=discussion,
         discussion_target=discussion_target,
         print_osc=print_osc,
