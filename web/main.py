@@ -223,26 +223,20 @@ async def main(ws: WebSocket, args: dict) -> str:
 
             try:
                 async with timeout(1800):  # 30 minutes
-                    print('JOIN...')
                     await loop.run_in_executor(None, proc.join)
                     return proc.exitcode
             finally:
-                print('FINALLY')
                 if proc.is_alive():
                     proc.terminate()
                     await loop.run_in_executor(None, proc.join)
 
+
     task = asyncio.create_task(process_task())
 
     try:
-        with r:
-            while True:
-                line: bytes = await loop.run_in_executor(None, r.recv_bytes)
-                print('GOT', line)
-                message = line.decode().rstrip(' \n')
-                if message:
-                    await ws.send_json({'message': message})
-    except EOFError:
+        with r, TextIOWrapper(os.fdopen(r.fileno(), 'rb', 0, closefd=False)) as reader:
+            while line := await loop.run_in_executor(None, reader.readline):
+                await ws.send_json({'message': line.rstrip(' \n')})
         exitcode = await task
         return f'Exit code: {exitcode}'
     finally:
