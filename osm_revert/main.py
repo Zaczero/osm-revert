@@ -81,10 +81,8 @@ def main_timer(func):
 def main(
     changeset_ids: Sequence[int],
     comment: str,
-    username: str | None = None,
-    password: str | None = None,
     *,
-    oauth_token: dict | None = None,
+    oauth_token: dict,
     discussion: str | None = None,
     discussion_target: str | None = None,
     osc_file: str | None = None,
@@ -99,12 +97,8 @@ def main(
     changeset_ids = tuple(sorted(set(changeset_ids)))
     only_tags = frozenset(tag.strip() for tag in only_tags if tag)
 
-    if not username and not password:
-        username = os.getenv('OSM_USERNAME')
-        password = os.getenv('OSM_PASSWORD')
-
     print('🔒️ Logging in to OpenStreetMap')
-    osm = OsmApi(username=username, password=password, oauth_token=oauth_token)
+    osm = OsmApi(oauth_token=oauth_token)
     user = osm.get_authorized_user()
 
     user_edits = user['changesets']['count']
@@ -263,9 +257,10 @@ def main(
 if __name__ == '__main__':
     # For debugging
     main(
-        changeset_ids=[149739087],
+        changeset_ids=[124750619],
         comment='revert',
         print_osc=True,
         query_filter='',
         fix_parents=True,
+        oauth_token={'token_type': 'Bearer', 'access_token': os.environ['OSM_TOKEN']},
     )
