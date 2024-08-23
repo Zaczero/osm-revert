@@ -25,7 +25,6 @@ from config import (
     OSM_SCOPES,
     OSM_SECRET,
     TEST_ENV,
-    USER_AGENT,
     VERSION_DATE,
 )
 from utils import http
@@ -75,7 +74,7 @@ async def index(request: Request):
 
 @app.post('/login')
 async def login(request: Request):
-    state = os.urandom(16).hex()
+    state = os.urandom(32).hex()
     authorization_url = 'https://www.openstreetmap.org/oauth2/authorize?' + urlencode(
         {
             'client_id': OSM_CLIENT,
