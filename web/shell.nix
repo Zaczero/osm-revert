@@ -72,7 +72,6 @@ let
     # Development environment variables
     export PYTHONNOUSERSITE=1
     export TZ=UTC
-    export INSTANCE_SECRET="development-secret"
     export TEST_ENV=1
 
     if [ -f .env ]; then

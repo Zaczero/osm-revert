@@ -82,7 +82,7 @@ def main(
     changeset_ids: Sequence[int],
     comment: str,
     *,
-    oauth_token: dict,
+    osm_token: str,
     discussion: str | None = None,
     discussion_target: str | None = None,
     osc_file: str | None = None,
@@ -98,7 +98,7 @@ def main(
     only_tags = frozenset(tag.strip() for tag in only_tags if tag)
 
     print('🔒️ Logging in to OpenStreetMap')
-    osm = OsmApi(oauth_token=oauth_token)
+    osm = OsmApi(osm_token)
     user = osm.get_authorized_user()
 
     user_edits = user['changesets']['count']
@@ -262,5 +262,5 @@ if __name__ == '__main__':
         print_osc=True,
         query_filter='',
         fix_parents=True,
-        oauth_token={'token_type': 'Bearer', 'access_token': os.environ['OSM_TOKEN']},
+        osm_token=os.environ['OSM_TOKEN'],
     )
