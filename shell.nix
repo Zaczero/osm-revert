@@ -9,10 +9,7 @@ let
   ];
   python' = with pkgs; (symlinkJoin {
     name = "python";
-    paths = [
-      # Enable Python optimizations when in production
-      (if isDevelopment then python312 else python312.override { enableOptimizations = true; })
-    ];
+    paths = [ python312 ];
     buildInputs = [ makeWrapper ];
     postBuild = ''
       wrapProgram "$out/bin/python3.12" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath pythonLibs}"
