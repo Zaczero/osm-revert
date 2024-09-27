@@ -1,4 +1,4 @@
-{ isDevelopment ? true }:
+{}:
 
 let
   # Update packages with `nixpkgs-update` command
@@ -53,14 +53,9 @@ let
       sed -i -E "s|/nixpkgs/archive/[0-9a-f]{40}\.tar\.gz|/nixpkgs/archive/$hash.tar.gz|" shell.nix
       echo "Nixpkgs updated to $hash"
     '')
-    (writeShellScriptBin "docker-build-push" ''
-      set -e
-      if command -v podman &> /dev/null; then docker() { podman "$@"; } fi
-      docker push $(docker load < $(nix-build --no-out-link) | sed -En 's/Loaded image: (\S+)/\1/p')
-    '')
   ];
 
-  shell' = with pkgs; lib.optionalString isDevelopment ''
+  shell' = ''
     export PYTHONNOUSERSITE=1
     export TZ=UTC
 
