@@ -1,18 +1,28 @@
-[tool.poetry]
-authors = ["Your Name <you@example.com>"]
-description = ""
+[project]
+dependencies = [
+  "aiohttp[speedups]",
+  "cachetools",
+  "certifi",
+  "fastapi",
+  "githead",
+  "gunicorn",
+  "httpx[brotli,zstd]",
+  "jinja2",
+  "sentry-sdk[fastapi,httpx,aiohttp]",
+  "uvicorn[standard]",
+  "xmltodict",
+]
 name = "osm-revert"
-packages = [{include = "osm_revert"}]
-version = "1.4.0"
+requires-python = "~=3.12"
+version = "0.0.0"
 
-[tool.poetry.dependencies]
-httpx = {extras = ["brotli", "http2"], version = "<1"}
-python = "^3.12"
-xmltodict = "<1"
+[tool.uv]
+package = false
+python-downloads = "never"
+python-preference = "only-system"
 
-[build-system]
-build-backend = "poetry.core.masonry.api"
-requires = ["poetry-core"]
+[tool.setuptools]
+packages = ["osm_revert", "web"]
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
@@ -22,7 +32,6 @@ exclude = [
   ".ruff_cache",
   ".venv",
   "osm_revert/diff_match_patch.py",
-  "web",
 ]
 
 indent-width = 4
@@ -33,43 +42,43 @@ target-version = "py312"
 ignore = []
 # see https://docs.astral.sh/ruff/rules/ for rules documentation
 select = [
-  "A", # flake8-builtins
-  "ARG", # flake8-unused-arguments
+  "A",     # flake8-builtins
+  "ARG",   # flake8-unused-arguments
   "ASYNC", # flake8-async
-  "B", # flake8-bugbear
-  "C4", # flake8-comprehensions
-  "DTZ", # flake8-datetimez
-  "E4", # pycodestyle
+  "B",     # flake8-bugbear
+  "C4",    # flake8-comprehensions
+  "DTZ",   # flake8-datetimez
+  "E4",    # pycodestyle
   "E7",
   "E9",
-  "F", # pyflakes
-  "FA", # flake8-future-annotations
-  "FLY", # flynt  # "FURB", # refurb
-  "G", # flake8-logging-format
-  "I", # isort
-  "ICN", # flake8-import-conventions
-  "INT", # flake8-gettext
-  "ISC", # flake8-implicit-str-concat
-  "LOG", # flake8-logging
-  "N", # pep8-naming
-  "NPY", # numpy
-  "Q", # flake8-quotes
-  "PERF", # perflint
-  "PGH", # pygrep-hooks
-  "PIE", # flake8-pie
-  "PT", # flake8-pytest-style
-  "PYI", # flake8-pyi
-  "RSE", # flake8-raise
-  "RUF", # ruff
-  "S", # flake8-bandit
-  "SIM", # flake8-simplify
-  "SLF", # flake8-self
-  "SLOT", # flake8-slots
-  "T10", # flake8-debugger
-  "TID", # flake8-tidy-imports
-  "UP", # pyupgrade
+  "F",     # pyflakes
+  "FA",    # flake8-future-annotations
+  "FLY",   # flynt  # "FURB", # refurb
+  "G",     # flake8-logging-format
+  "I",     # isort
+  "ICN",   # flake8-import-conventions
+  "INT",   # flake8-gettext
+  "ISC",   # flake8-implicit-str-concat
+  "LOG",   # flake8-logging
+  "N",     # pep8-naming
+  "NPY",   # numpy
+  "PERF",  # perflint
+  "PGH",   # pygrep-hooks
+  "PIE",   # flake8-pie
+  "PT",    # flake8-pytest-style
+  "PYI",   # flake8-pyi
+  "Q",     # flake8-quotes
+  "RSE",   # flake8-raise
+  "RUF",   # ruff
+  "S",     # flake8-bandit
+  "SIM",   # flake8-simplify
+  "SLF",   # flake8-self
+  "SLOT",  # flake8-slots
+  "T10",   # flake8-debugger
+  "TID",   # flake8-tidy-imports
+  "UP",    # pyupgrade
   "W6",
-  "YTT", # flake8-2020
+  "YTT",   # flake8-2020
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

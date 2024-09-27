@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 import xmltodict
 
-from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, WEBSITE
+from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, OSM_URL, WEBSITE
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.invert import Inverter
 from osm_revert.osm import OsmApi, build_osm_change
@@ -46,7 +46,7 @@ def filter_discussion_changesets(changeset_ids: Sequence[int], target: str) -> S
 def print_warn_elements(warn_elements: dict[str, list[str]]) -> None:
     for element_type, element_ids in warn_elements.items():
         for element_id in element_ids:
-            print(f'⚠️ Please verify: https://www.openstreetmap.org/{element_type}/{element_id}')
+            print(f'⚠️ Please verify: {OSM_URL}/{element_type}/{element_id}')
 
 
 def main_timer(func):
@@ -222,7 +222,7 @@ def main(
         extra_args = {'changesets_count': user_edits + 1, 'created_by': CREATED_BY, 'host': WEBSITE}
 
         if len(changeset_ids) == 1:
-            extra_args['id'] = ';'.join(f'https://www.openstreetmap.org/changeset/{c}' for c in changeset_ids)
+            extra_args['id'] = ';'.join(f'{OSM_URL}/changeset/{c}' for c in changeset_ids)
         else:
             extra_args['id'] = ';'.join(map(str, changeset_ids))
 
@@ -230,7 +230,7 @@ def main(
             extra_args['filter'] = query_filter
 
         if changeset_id := osm.upload_diff(invert, comment, extra_args | inverter.statistics):
-            changeset_url = f'https://www.openstreetmap.org/changeset/{changeset_id}'
+            changeset_url = f'{OSM_URL}/changeset/{changeset_id}'
 
             discussion = discussion.strip()
 

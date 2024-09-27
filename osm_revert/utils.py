@@ -68,11 +68,9 @@ def get_http_client(base_url: str = '', *, auth: Any | None = None, headers: dic
     return Client(
         base_url=base_url,
         auth=auth,
-        headers={'User-Agent': USER_AGENT} | headers,
+        headers={'User-Agent': USER_AGENT, **headers},
         timeout=30,
         follow_redirects=True,
-        http1=True,
-        http2=True,
     )
 
 

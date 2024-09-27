@@ -19,21 +19,25 @@ from fastapi.templating import Jinja2Templates
 from sentry_sdk import capture_exception, set_context, trace
 from starlette.websockets import WebSocket
 
-from config import (
+from osm_revert.config import (
     CONNECTION_LIMIT,
+    OSM_API_URL,
     OSM_CLIENT,
     OSM_SCOPES,
     OSM_SECRET,
+    OSM_URL,
     TEST_ENV,
-    VERSION_DATE,
 )
-from utils import http
+from web.utils import http
+
+if not OSM_CLIENT or not OSM_SECRET:
+    raise AssertionError('Web interface requires OSM_CLIENT and OSM_SECRET to be set')
 
 app = FastAPI()
-app.mount('/static', StaticFiles(directory='static', html=True), name='static')
+app.mount('/static', StaticFiles(directory='web/static', html=True), name='static')
 
 cookie_max_age = 31536000  # 1 year
-templates = Jinja2Templates(directory='templates', auto_reload=TEST_ENV)
+templates = Jinja2Templates(directory='web/templates', auto_reload=TEST_ENV)
 user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
 active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
 
@@ -49,7 +53,7 @@ async def fetch_user_details(request: Request) -> dict | None:
         return user_cache[access_token]
     except Exception:
         async with http().get(
-            'https://api.openstreetmap.org/api/0.6/user/details.json',
+            f'{OSM_API_URL}/api/0.6/user/details.json',
             headers={'Authorization': f'Bearer {access_token}'},
         ) as r:
             if not r.ok:
@@ -75,7 +79,7 @@ async def index(request: Request):
 @app.post('/login')
 async def login(request: Request):
     state = os.urandom(32).hex()
-    authorization_url = 'https://www.openstreetmap.org/oauth2/authorize?' + urlencode(
+    authorization_url = f'{OSM_URL}/oauth2/authorize?' + urlencode(
         {
             'client_id': OSM_CLIENT,
             'redirect_uri': str(request.url_for('callback')),
@@ -96,7 +100,7 @@ async def callback(request: Request, code: Annotated[str, Query()], state: Annot
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Invalid OAuth state')
 
     async with http().post(
-        'https://www.openstreetmap.org/oauth2/token',
+        f'{OSM_URL}/oauth2/token',
         data={
             'client_id': OSM_CLIENT,
             'client_secret': OSM_SECRET,
@@ -190,10 +194,6 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
     r, w = Pipe(duplex=False)
     kwargs = {
         'conn': w,
-        'env': {
-            'OSM_REVERT_VERSION_DATE': VERSION_DATE,
-            'OSM_REVERT_WEBSITE': os.getenv('OSM_REVERT_WEBSITE', ''),
-        },
         'changeset_ids': changeset_ids,
         'comment': comment,
         'osm_token': access_token,
@@ -236,7 +236,6 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
 def revert_worker(
     *,
     conn: Connection,
-    env: dict[str, str],
     changeset_ids: Sequence[int],
     comment: str,
     osm_token: str,
@@ -249,13 +248,9 @@ def revert_worker(
     # redirect stdout/stderr to the pipe
     sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', 0, closefd=False), write_through=True)
 
-    # configure environment variables
-    for k, v in env.items():
-        os.environ[k] = v
+    from osm_revert.main import main
 
-    import osm_revert
-
-    return osm_revert.main(
+    return main(
         changeset_ids=changeset_ids,
         comment=comment,
         osm_token=osm_token,

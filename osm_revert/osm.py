@@ -1,6 +1,6 @@
 import xmltodict
 
-from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, TAG_MAX_LENGTH, TAG_PREFIX, XML_HEADERS
+from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, OSM_API_URL, TAG_MAX_LENGTH, TAG_PREFIX
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 
@@ -93,7 +93,7 @@ def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
 class OsmApi:
     def __init__(self, osm_token: str):
         self._http = get_http_client(
-            'https://api.openstreetmap.org/api',
+            f'{OSM_API_URL}/api',
             headers={'Authorization': f'Bearer {osm_token}'},
         )
 
@@ -203,7 +203,11 @@ class OsmApi:
 
         changeset_xml = xmltodict.unparse(changeset)
 
-        r = self._http.put('/0.6/changeset/create', content=changeset_xml, headers=XML_HEADERS)
+        r = self._http.put(
+            '/0.6/changeset/create',
+            content=changeset_xml,
+            headers={'Content-Type': 'text/xml; charset=utf-8'},
+        )
         r.raise_for_status()
 
         changeset_id = r.text
@@ -213,7 +217,7 @@ class OsmApi:
         upload_resp = self._http.post(
             f'/0.6/changeset/{changeset_id}/upload',
             content=osm_change_xml,
-            headers=XML_HEADERS,
+            headers={'Content-Type': 'text/xml; charset=utf-8'},
             timeout=150,
         )
 

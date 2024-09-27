@@ -2,14 +2,17 @@
 
 let
   # Update packages with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/4de4818c1ffa76d57787af936e8a23648bda6be4.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/28b5b8af91ffd2623e995e20aee56510db49001a.tar.gz") { };
 
   pythonLibs = with pkgs; [
     stdenv.cc.cc.lib
   ];
   python' = with pkgs; (symlinkJoin {
     name = "python";
-    paths = [ python312 ];
+    paths = [
+      # Enable Python optimizations when in production
+      (if isDevelopment then python312 else python312.override { enableOptimizations = true; })
+    ];
     buildInputs = [ makeWrapper ];
     postBuild = ''
       wrapProgram "$out/bin/python3.12" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath pythonLibs}"
@@ -18,39 +21,68 @@ let
 
   packages' = with pkgs; [
     python'
-    poetry
+    esbuild
+    uv
     ruff
 
+    (writeShellScriptBin "run" ''
+      python -m gunicorn web.main:app \
+        --worker-class uvicorn.workers.UvicornWorker \
+        --graceful-timeout 5 \
+        --keep-alive 300 \
+        --access-logfile -
+    '')
+    (writeShellScriptBin "make-bundle" ''
+      # authorized.js
+      HASH=$(esbuild web/static/js/authorized.js --bundle --minify | sha256sum | head -c8 ; echo "") && \
+      esbuild web/static/js/authorized.js --bundle --minify --sourcemap --charset=utf8 --outfile=web/static/js/authorized.$HASH.js && \
+      find web/templates -type f -exec sed -r 's|src="/static/js/authorized\..*?js"|src="/static/js/authorized.'$HASH'.js"|g' -i {} \;
+
+      # style.css
+      HASH=$(esbuild web/static/css/style.css --bundle --minify | sha256sum | head -c8 ; echo "") && \
+      esbuild web/static/css/style.css --bundle --minify --sourcemap --charset=utf8 --outfile=web/static/css/style.$HASH.css && \
+      find web/templates -type f -exec sed -r 's|href="/static/css/style\..*?css"|href="/static/css/style.'$HASH'.css"|g' -i {} \;
+    '')
     (writeShellScriptBin "nixpkgs-update" ''
       set -e
-      hash=$(git ls-remote https://github.com/NixOS/nixpkgs nixpkgs-unstable | cut -f 1)
+      hash=$(
+        curl --silent --location \
+        https://prometheus.nixos.org/api/v1/query \
+        -d "query=channel_revision{channel=\"nixpkgs-unstable\"}" | \
+        grep --only-matching --extended-regexp "[0-9a-f]{40}")
       sed -i -E "s|/nixpkgs/archive/[0-9a-f]{40}\.tar\.gz|/nixpkgs/archive/$hash.tar.gz|" shell.nix
       echo "Nixpkgs updated to $hash"
+    '')
+    (writeShellScriptBin "docker-build-push" ''
+      set -e
+      if command -v podman &> /dev/null; then docker() { podman "$@"; } fi
+      docker push $(docker load < $(nix-build --no-out-link) | sed -En 's/Loaded image: (\S+)/\1/p')
     '')
   ];
 
   shell' = with pkgs; lib.optionalString isDevelopment ''
+    export PYTHONNOUSERSITE=1
+    export TZ=UTC
+
     current_python=$(readlink -e .venv/bin/python || echo "")
     current_python=''${current_python%/bin/*}
     [ "$current_python" != "${python'}" ] && rm -rf .venv/
 
     echo "Installing Python dependencies"
-    export POETRY_VIRTUALENVS_IN_PROJECT=1
-    poetry env use "${python'}/bin/python"
-    poetry install --compile
+    export UV_COMPILE_BYTECODE=1
+    export UV_PYTHON="${python'}/bin/python"
+    uv sync --frozen
 
     echo "Activating Python virtual environment"
     source .venv/bin/activate
-
-    # Development environment variables
-    export PYTHONNOUSERSITE=1
-    export TZ=UTC
 
     if [ -f .env ]; then
       echo "Loading .env file"
       set -o allexport
       source .env set
       set +o allexport
+    else
+      echo "Skipped loading .env file (not found)"
     fi
   '';
 in

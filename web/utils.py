@@ -4,7 +4,7 @@ from functools import cache
 import certifi
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 
-from config import USER_AGENT
+from osm_revert.config import USER_AGENT
 
 
 @cache

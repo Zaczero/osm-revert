@@ -1,13 +1,25 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: main.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/osm_revert/main.py",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "name": "Python: main.py",
+            "program": "${workspaceFolder}/osm_revert/main.py",
+            "request": "launch",
+            "type": "debugpy"
+        },
+        {
+            "args": [
+                "--reload",
+                "web.main:app"
+            ],
+            "jinja": true,
+            "justMyCode": true,
+            "module": "uvicorn",
+            "name": "Python: FastAPI",
+            "request": "launch",
+            "type": "debugpy"
         }
-    ]
+    ],
+    "version": "0.2.0"
 }

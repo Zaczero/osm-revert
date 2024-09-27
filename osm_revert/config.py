@@ -1,16 +1,16 @@
 import os
 
-VERSION = '1.4.0'
+import sentry_sdk
+from githead import githead
 
-if version_date := os.getenv('OSM_REVERT_VERSION_DATE'):
-    VERSION += f'.{version_date}'
-
-if version_suffix := os.getenv('OSM_REVERT_VERSION_SUFFIX'):
-    VERSION += f'-{version_suffix}'
-
-WEBSITE = os.getenv('OSM_REVERT_WEBSITE', None)
+VERSION = 'git#' + githead()[:7]
+WEBSITE = os.getenv('OSM_REVERT_WEBSITE')
 CREATED_BY = f'osm-revert {VERSION}'
 USER_AGENT = f'osm-revert/{VERSION} (+https://github.com/Zaczero/osm-revert)'
+
+TEST_ENV = os.getenv('TEST_ENV', '0').strip().lower() in ('1', 'true', 'yes')
+if TEST_ENV:
+    print('[CONF] Running in test environment')
 
 CHANGESETS_LIMIT_CONFIG = {
     '': {
@@ -27,7 +27,22 @@ TAG_MAX_LENGTH = 255
 TAG_PREFIX = 'revert'
 NO_TAG_PREFIX = {'comment', 'changesets_count', 'created_by', 'host', 'website'}
 
-XML_HEADERS = {'Content-Type': 'text/xml; charset=utf-8'}
-
 REVERT_TO_DATE = os.getenv('REVERT_TO_DATE', None)
 CHANGESETS_LIMIT_MODERATOR_REVERT = int(os.getenv('CHANGESETS_LIMIT_MODERATOR_REVERT', 2000))
+
+OSM_URL = os.getenv('OSM_URL', 'https://www.openstreetmap.org')
+OSM_API_URL = os.getenv('OSM_API_URL', 'https://api.openstreetmap.org')
+
+OSM_CLIENT = os.getenv('OSM_CLIENT')
+OSM_SECRET = os.getenv('OSM_SECRET')
+OSM_SCOPES = 'read_prefs write_api'
+CONNECTION_LIMIT = int(os.getenv('CONNECTION_LIMIT', 2))
+
+if SENTRY_DSN := os.getenv('SENTRY_DSN'):
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        release=VERSION,
+        enable_tracing=True,
+        traces_sample_rate=0.5,
+        trace_propagation_targets=None,
+    )

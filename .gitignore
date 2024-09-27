@@ -311,3 +311,6 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/dotenv,python,pycharm,visualstudiocode,direnv
+
+web/static/css/style.*.css
+web/static/js/authorized.*.js
