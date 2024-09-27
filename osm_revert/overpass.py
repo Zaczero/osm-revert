@@ -7,7 +7,7 @@ from itertools import chain, pairwise
 import xmltodict
 from httpx import Client
 
-from osm_revert.config import REVERT_TO_DATE
+from osm_revert.config import OVERPASS_URLS, REVERT_TO_DATE
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
@@ -203,10 +203,7 @@ def ensure_visible_tag(element: dict | None) -> None:
 
 class Overpass:
     def __init__(self):
-        self._https = [
-            get_http_client('https://overpass.monicz.dev/api/interpreter'),
-            get_http_client('https://overpass-api.de/api/interpreter'),
-        ]
+        self._https = tuple(get_http_client(url) for url in OVERPASS_URLS)
 
     def get_changeset_elements_history(
         self,
