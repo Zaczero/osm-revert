@@ -147,7 +147,7 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
 
 @retry_exponential()
 def fetch_overpass(http: Client, data: str, *, check_bad_request: bool = False) -> dict | str:
-    response = http.post('', data={'data': data}, timeout=300)
+    response = http.post('/interpreter', data={'data': data}, timeout=300)
 
     if check_bad_request and response.status_code == 400:
         s = response.text.find('<body>')
