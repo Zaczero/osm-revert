@@ -47,4 +47,5 @@ if SENTRY_DSN := os.getenv('SENTRY_DSN'):
         enable_tracing=True,
         traces_sample_rate=0.5,
         trace_propagation_targets=None,
+        profiles_sample_rate=0.5,
     )

@@ -1,13 +1,10 @@
 import asyncio
 import os
 import re
-import sys
 from asyncio import Semaphore, get_running_loop, timeout
 from collections import defaultdict
-from collections.abc import Sequence
 from io import TextIOWrapper
 from multiprocessing import Pipe, Process
-from multiprocessing.connection import Connection
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -28,6 +25,7 @@ from osm_revert.config import (
     OSM_URL,
     TEST_ENV,
 )
+from web.revert_worker import revert_worker
 from web.utils import http
 
 if not OSM_CLIENT or not OSM_SECRET:
@@ -231,32 +229,3 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
         return f'Exit code: {exitcode}'
     finally:
         task.cancel()
-
-
-def revert_worker(
-    *,
-    conn: Connection,
-    changeset_ids: Sequence[int],
-    comment: str,
-    osm_token: str,
-    discussion: str,
-    discussion_target: str,
-    print_osc: bool,
-    query_filter: str,
-    fix_parents: bool,
-) -> int:
-    # redirect stdout/stderr to the pipe
-    sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', 0, closefd=False), write_through=True)
-
-    from osm_revert.main import main
-
-    return main(
-        changeset_ids=changeset_ids,
-        comment=comment,
-        osm_token=osm_token,
-        discussion=discussion,
-        discussion_target=discussion_target,
-        print_osc=print_osc,
-        query_filter=query_filter,
-        fix_parents=fix_parents,
-    )
