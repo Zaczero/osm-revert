@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from io import TextIOWrapper
 from multiprocessing.connection import Connection
 
-from sentry_sdk import start_transaction
+from sentry_sdk import continue_trace, start_transaction
 
 
 def revert_worker(
@@ -18,13 +18,14 @@ def revert_worker(
     print_osc: bool,
     query_filter: str,
     fix_parents: bool,
+    sentry_headers: dict,
 ) -> int:
     # redirect stdout/stderr to the pipe
     sys.stdout = sys.stderr = TextIOWrapper(os.fdopen(conn.fileno(), 'wb', 0, closefd=False), write_through=True)
 
     from osm_revert.main import main
 
-    with start_transaction(op='revert', name=revert_worker.__qualname__):
+    with start_transaction(continue_trace(sentry_headers, op='revert', name=revert_worker.__qualname__)):
         return main(
             changeset_ids=changeset_ids,
             comment=comment,

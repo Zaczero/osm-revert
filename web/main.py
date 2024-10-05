@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, WebSocketDisconnect,
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sentry_sdk import capture_exception, set_context, trace
+from sentry_sdk import capture_exception, get_baggage, get_traceparent, set_context, trace
 from starlette.websockets import WebSocket
 
 from osm_revert.config import (
@@ -200,6 +200,7 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
         'print_osc': print_osc,
         'query_filter': query_filter,
         'fix_parents': fix_parents,
+        'sentry_headers': {'sentry-trace': get_traceparent(), 'baggage': get_baggage()},
     }
     set_context('revert', kwargs)
     loop = get_running_loop()
