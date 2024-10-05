@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlsplit
 
 import sentry_sdk
 from githead import githead
@@ -43,7 +44,7 @@ if SENTRY_DSN := os.getenv('SENTRY_DSN'):
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         release=VERSION,
-        environment=OSM_URL,
+        environment=urlsplit(OSM_URL).hostname,
         enable_tracing=True,
         traces_sample_rate=0.5,
         trace_propagation_targets=None,
