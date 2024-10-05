@@ -52,7 +52,8 @@ let
     '')
   ];
 
-  shell' = ''
+  shell' = with pkgs; ''
+    export SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
     export PYTHONNOUSERSITE=1
     export TZ=UTC
 
