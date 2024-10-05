@@ -49,4 +49,7 @@ if SENTRY_DSN := os.getenv('SENTRY_DSN'):
         traces_sample_rate=0.5,
         trace_propagation_targets=None,
         profiles_sample_rate=0.5,
+        _experiments={
+            'continuous_profiling_auto_start': True,
+        },
     )
