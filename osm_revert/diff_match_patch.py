@@ -28,7 +28,6 @@ __author__ = 'fraser@google.com (Neil Fraser)'
 import re
 import sys
 import time
-import urllib.parse
 
 
 class diff_match_patch:
@@ -92,15 +91,12 @@ class diff_match_patch:
       Array of changes.
     """
     # Set a deadline by which time the diff must be complete.
-    if deadline == None:
+    if deadline is None:
       # Unlike in most languages, Python counts time in seconds.
-      if self.Diff_Timeout <= 0:
-        deadline = sys.maxsize
-      else:
-        deadline = time.time() + self.Diff_Timeout
+      deadline = sys.maxsize if self.Diff_Timeout <= 0 else time.time() + self.Diff_Timeout
 
     # Check for null inputs.
-    if text1 == None or text2 == None:
+    if text1 is None or text2 is None:
       raise ValueError("Null inputs. (diff_main)")
 
     # Check for equality (speedup).
@@ -117,7 +113,7 @@ class diff_match_patch:
 
     # Trim off common suffix (speedup).
     commonlength = self.diff_commonSuffix(text1, text2)
-    if commonlength == 0:
+    if not commonlength:
       commonsuffix = ''
     else:
       commonsuffix = text1[-commonlength:]
@@ -187,7 +183,7 @@ class diff_match_patch:
       diffs_a = self.diff_main(text1_a, text2_a, checklines, deadline)
       diffs_b = self.diff_main(text1_b, text2_b, checklines, deadline)
       # Merge the results.
-      return diffs_a + [(self.DIFF_EQUAL, mid_common)] + diffs_b
+      return [*diffs_a, (self.DIFF_EQUAL, mid_common), *diffs_b]
 
     if checklines and len(text1) > 100 and len(text2) > 100:
       return self.diff_lineMode(text1, text2, deadline)
@@ -277,7 +273,7 @@ class diff_match_patch:
     delta = text1_length - text2_length
     # If the total number of characters is odd, then the front path will
     # collide with the reverse path.
-    front = (delta % 2 != 0)
+    front = bool(delta % 2)
     # Offsets for start and end of k loop.
     # Prevents mapping of space beyond the grid.
     k1start = 0
@@ -444,10 +440,7 @@ class diff_match_patch:
     return (chars1, chars2, chars3, lineArray)
 
   def diff_charsToLinesText(self, chars, lineArray):
-    text = []
-    for char in chars:
-      text.append(lineArray[ord(char)])
-    return "".join(text)
+    return "".join(lineArray[ord(char)] for char in chars)
 
   def diff_charsToLines(self, diffs, lineArray):
     """Rehydrate the text in a diff from a string of line hashes to real lines
@@ -457,11 +450,8 @@ class diff_match_patch:
       diffs: Array of diff tuples.
       lineArray: Array of unique strings.
     """
-    for i in range(len(diffs)):
-      text = []
-      for char in diffs[i][1]:
-        text.append(lineArray[ord(char)])
-      diffs[i] = (diffs[i][0], "".join(text))
+    for i, (diff_type, diff_text) in enumerate(diffs):
+        diffs[i] = (diff_type, "".join(lineArray[ord(char)] for char in diff_text))
 
   def diff_commonPrefix(self, text1, text2):
     """Determine the common prefix of two strings.
@@ -535,7 +525,7 @@ class diff_match_patch:
     text1_length = len(text1)
     text2_length = len(text2)
     # Eliminate the null case.
-    if text1_length == 0 or text2_length == 0:
+    if not text1_length or not text2_length:
       return 0
     # Truncate the longer string.
     if text1_length > text2_length:
@@ -558,7 +548,7 @@ class diff_match_patch:
       if found == -1:
         return best
       length += found
-      if found == 0 or text1[-length:] == text2[:length]:
+      if not found or text1[-length:] == text2[:length]:
         best = length
         length += 1
 
@@ -634,10 +624,7 @@ class diff_match_patch:
       hm = hm2
     else:
       # Both matched.  Select the longest.
-      if len(hm1[4]) > len(hm2[4]):
-        hm = hm1
-      else:
-        hm = hm2
+      hm = hm1 if len(hm1[4]) > len(hm2[4]) else hm2
 
     # A half-match was found, sort out the return data.
     if len(text1) > len(text2):
@@ -685,12 +672,9 @@ class diff_match_patch:
           # Throw away the equality we just deleted.
           equalities.pop()
           # Throw away the previous equality (it needs to be reevaluated).
-          if len(equalities):
+          if equalities:
             equalities.pop()
-          if len(equalities):
-            pointer = equalities[-1]
-          else:
-            pointer = -1
+          pointer = equalities[-1] if equalities else -1
           # Reset the counters.
           length_insertions1, length_deletions1 = 0, 0
           length_insertions2, length_deletions2 = 0, 0
@@ -914,12 +898,9 @@ class diff_match_patch:
             post_ins = post_del = True
             equalities = []
           else:
-            if len(equalities):
+            if equalities:
               equalities.pop()  # Throw away the previous equality.
-            if len(equalities):
-              pointer = equalities[-1]
-            else:
-              pointer = -1
+            pointer = equalities[-1] if equalities else -1
             post_ins = post_del = False
           changes = True
       pointer += 1
@@ -952,10 +933,10 @@ class diff_match_patch:
       elif diffs[pointer][0] == self.DIFF_EQUAL:
         # Upon reaching an equality, check for prior redundancies.
         if count_delete + count_insert > 1:
-          if count_delete != 0 and count_insert != 0:
+          if count_delete and count_insert:
             # Factor out any common prefixies.
             commonlength = self.diff_commonPrefix(text_insert, text_delete)
-            if commonlength != 0:
+            if commonlength:
               x = pointer - count_delete - count_insert - 1
               if x >= 0 and diffs[x][0] == self.DIFF_EQUAL:
                 diffs[x] = (diffs[x][0], diffs[x][1] +
@@ -967,21 +948,21 @@ class diff_match_patch:
               text_delete = text_delete[commonlength:]
             # Factor out any common suffixies.
             commonlength = self.diff_commonSuffix(text_insert, text_delete)
-            if commonlength != 0:
+            if commonlength:
               diffs[pointer] = (diffs[pointer][0], text_insert[-commonlength:] +
                   diffs[pointer][1])
               text_insert = text_insert[:-commonlength]
               text_delete = text_delete[:-commonlength]
           # Delete the offending records and add the merged ones.
           new_ops = []
-          if len(text_delete) != 0:
+          if text_delete:
             new_ops.append((self.DIFF_DELETE, text_delete))
-          if len(text_insert) != 0:
+          if text_insert:
             new_ops.append((self.DIFF_INSERT, text_insert))
           pointer -= count_delete + count_insert
           diffs[pointer : pointer + count_delete + count_insert] = new_ops
           pointer += len(new_ops) + 1
-        elif pointer != 0 and diffs[pointer - 1][0] == self.DIFF_EQUAL:
+        elif pointer and diffs[pointer - 1][0] == self.DIFF_EQUAL:
           # Merge this equality with the previous one.
           diffs[pointer - 1] = (diffs[pointer - 1][0],
                                 diffs[pointer - 1][1] + diffs[pointer][1])
@@ -1064,27 +1045,6 @@ class diff_match_patch:
     # Add the remaining len(character).
     return last_chars2 + (loc - last_chars1)
 
-  def diff_prettyHtml(self, diffs):
-    """Convert a diff array into a pretty HTML report.
-
-    Args:
-      diffs: Array of diff tuples.
-
-    Returns:
-      HTML representation.
-    """
-    html = []
-    for (op, data) in diffs:
-      text = (data.replace("&", "&amp;").replace("<", "&lt;")
-                 .replace(">", "&gt;").replace("\n", "&para;<br>"))
-      if op == self.DIFF_INSERT:
-        html.append("<ins style=\"background:#e6ffe6;\">%s</ins>" % text)
-      elif op == self.DIFF_DELETE:
-        html.append("<del style=\"background:#ffe6e6;\">%s</del>" % text)
-      elif op == self.DIFF_EQUAL:
-        html.append("<span>%s</span>" % text)
-    return "".join(html)
-
   def diff_text1(self, diffs):
     """Compute and return the source text (all equalities and deletions).
 
@@ -1141,80 +1101,6 @@ class diff_match_patch:
     levenshtein += max(insertions, deletions)
     return levenshtein
 
-  def diff_toDelta(self, diffs):
-    """Crush the diff into an encoded string which describes the operations
-    required to transform text1 into text2.
-    E.g. =3\t-2\t+ing  -> Keep 3 chars, delete 2 chars, insert 'ing'.
-    Operations are tab-separated.  Inserted text is escaped using %xx notation.
-
-    Args:
-      diffs: Array of diff tuples.
-
-    Returns:
-      Delta text.
-    """
-    text = []
-    for (op, data) in diffs:
-      if op == self.DIFF_INSERT:
-        # High ascii will raise UnicodeDecodeError.  Use Unicode instead.
-        data = data.encode("utf-8")
-        text.append("+" + urllib.parse.quote(data, "!~*'();/?:@&=+$,# "))
-      elif op == self.DIFF_DELETE:
-        text.append("-%d" % len(data))
-      elif op == self.DIFF_EQUAL:
-        text.append("=%d" % len(data))
-    return "\t".join(text)
-
-  def diff_fromDelta(self, text1, delta):
-    """Given the original text1, and an encoded string which describes the
-    operations required to transform text1 into text2, compute the full diff.
-
-    Args:
-      text1: Source string for the diff.
-      delta: Delta text.
-
-    Returns:
-      Array of diff tuples.
-
-    Raises:
-      ValueError: If invalid input.
-    """
-    diffs = []
-    pointer = 0  # Cursor in text1
-    tokens = delta.split("\t")
-    for token in tokens:
-      if token == "":
-        # Blank tokens are ok (from a trailing \t).
-        continue
-      # Each token begins with a one character parameter which specifies the
-      # operation of this token (delete, insert, equality).
-      param = token[1:]
-      if token[0] == "+":
-        param = urllib.parse.unquote(param)
-        diffs.append((self.DIFF_INSERT, param))
-      elif token[0] == "-" or token[0] == "=":
-        try:
-          n = int(param)
-        except ValueError:
-          raise ValueError("Invalid number in diff_fromDelta: " + param)
-        if n < 0:
-          raise ValueError("Negative number in diff_fromDelta: " + param)
-        text = text1[pointer : pointer + n]
-        pointer += n
-        if token[0] == "=":
-          diffs.append((self.DIFF_EQUAL, text))
-        else:
-          diffs.append((self.DIFF_DELETE, text))
-      else:
-        # Anything else is an error.
-        raise ValueError("Invalid diff operation in diff_fromDelta: " +
-            token[0])
-    if pointer != len(text1):
-      raise ValueError(
-          "Delta length (%d) does not equal source text length (%d)." %
-         (pointer, len(text1)))
-    return diffs
-
   #  MATCH FUNCTIONS
 
   def match_main(self, text, pattern, loc):
@@ -1229,7 +1115,7 @@ class diff_match_patch:
       Best match index or -1.
     """
     # Check for null inputs.
-    if text == None or pattern == None:
+    if text is None or pattern is None:
       raise ValueError("Null inputs. (match_main)")
 
     loc = max(0, min(loc, len(text)))
@@ -1260,7 +1146,7 @@ class diff_match_patch:
       Best match index or -1.
     """
     # Python doesn't have a maxint limit, so ignore this check.
-    #if self.Match_MaxBits != 0 and len(pattern) > self.Match_MaxBits:
+    #if self.Match_MaxBits and len(pattern) > self.Match_MaxBits:
     #  raise ValueError("Pattern too long for this application.")
 
     # Initialise the alphabet.
@@ -1323,12 +1209,8 @@ class diff_match_patch:
       rd = [0] * (finish + 2)
       rd[finish + 1] = (1 << d) - 1
       for j in range(finish, start - 1, -1):
-        if len(text) <= j - 1:
-          # Out of range.
-          charMatch = 0
-        else:
-          charMatch = s.get(text[j - 1], 0)
-        if d == 0:  # First pass: exact match.
+        charMatch = 0 if len(text) <= j - 1 else s.get(text[j - 1], 0)
+        if not d:  # First pass: exact match.
           rd[j] = ((rd[j + 1] << 1) | 1) & charMatch
         else:  # Subsequent passes: fuzzy match.
           rd[j] = (((rd[j + 1] << 1) | 1) & charMatch) | (
@@ -1379,7 +1261,7 @@ class diff_match_patch:
       patch: The patch to grow.
       text: Source text.
     """
-    if len(text) == 0:
+    if not text:
       return
     pattern = text[patch.start2 : patch.start2 + patch.length1]
     padding = 0
@@ -1475,7 +1357,7 @@ class diff_match_patch:
     postpatch_text = text1
     for x in range(len(diffs)):
       (diff_type, diff_text) = diffs[x]
-      if len(patch.diffs) == 0 and diff_type != self.DIFF_EQUAL:
+      if not patch.diffs and diff_type != self.DIFF_EQUAL:
         # A new patch starts here.
         patch.start1 = char_count1
         patch.start2 = char_count2
@@ -1493,7 +1375,7 @@ class diff_match_patch:
                           postpatch_text[char_count2 + len(diff_text):])
       elif (diff_type == self.DIFF_EQUAL and
             len(diff_text) <= 2 * self.Patch_Margin and
-            len(patch.diffs) != 0 and len(diffs) != x + 1):
+            patch.diffs and len(diffs) != x + 1):
         # Small equality inside a patch.
         patch.diffs.append(diffs[x])
         patch.length1 += len(diff_text)
@@ -1502,7 +1384,7 @@ class diff_match_patch:
       if (diff_type == self.DIFF_EQUAL and
           len(diff_text) >= 2 * self.Patch_Margin):
         # Time for a new patch.
-        if len(patch.diffs) != 0:
+        if patch.diffs:
           self.patch_addContext(patch, prepatch_text)
           patches.append(patch)
           patch = patch_obj()
@@ -1520,7 +1402,7 @@ class diff_match_patch:
         char_count2 += len(diff_text)
 
     # Pick up the leftover patch if not empty.
-    if len(patch.diffs) != 0:
+    if patch.diffs:
       self.patch_addContext(patch, prepatch_text)
       patches.append(patch)
     return patches
@@ -1701,7 +1583,7 @@ class diff_match_patch:
       patches: Array of Patch objects.
     """
     patch_size = self.Match_MaxBits
-    if patch_size == 0:
+    if not patch_size:
       # Python has the option of not splitting strings due to its ability
       # to handle integers of arbitrary precision.
       return
@@ -1715,7 +1597,7 @@ class diff_match_patch:
       start1 = bigpatch.start1
       start2 = bigpatch.start2
       precontext = ''
-      while len(bigpatch.diffs) != 0:
+      while bigpatch.diffs:
         # Create one of several smaller patches.
         patch = patch_obj()
         empty = True
@@ -1725,7 +1607,7 @@ class diff_match_patch:
           patch.length1 = patch.length2 = len(precontext)
           patch.diffs.append((self.DIFF_EQUAL, precontext))
 
-        while (len(bigpatch.diffs) != 0 and
+        while (bigpatch.diffs and
                patch.length1 < patch_size - self.Patch_Margin):
           (diff_type, diff_text) = bigpatch.diffs[0]
           if diff_type == self.DIFF_INSERT:
@@ -1770,7 +1652,7 @@ class diff_match_patch:
         if postcontext:
           patch.length1 += len(postcontext)
           patch.length2 += len(postcontext)
-          if len(patch.diffs) != 0 and patch.diffs[-1][0] == self.DIFF_EQUAL:
+          if patch.diffs and patch.diffs[-1][0] == self.DIFF_EQUAL:
             patch.diffs[-1] = (self.DIFF_EQUAL, patch.diffs[-1][1] +
                                postcontext)
           else:
@@ -1780,96 +1662,11 @@ class diff_match_patch:
           x += 1
           patches.insert(x, patch)
 
-  def patch_toText(self, patches):
-    """Take a list of patches and return a textual representation.
-
-    Args:
-      patches: Array of Patch objects.
-
-    Returns:
-      Text representation of patches.
-    """
-    text = []
-    for patch in patches:
-      text.append(str(patch))
-    return "".join(text)
-
-  def patch_fromText(self, textline):
-    """Parse a textual representation of patches and return a list of patch
-    objects.
-
-    Args:
-      textline: Text representation of patches.
-
-    Returns:
-      Array of Patch objects.
-
-    Raises:
-      ValueError: If invalid input.
-    """
-    patches = []
-    if not textline:
-      return patches
-    text = textline.split('\n')
-    while len(text) != 0:
-      m = re.match(r"^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@$", text[0])
-      if not m:
-        raise ValueError("Invalid patch string: " + text[0])
-      patch = patch_obj()
-      patches.append(patch)
-      patch.start1 = int(m.group(1))
-      if m.group(2) == '':
-        patch.start1 -= 1
-        patch.length1 = 1
-      elif m.group(2) == '0':
-        patch.length1 = 0
-      else:
-        patch.start1 -= 1
-        patch.length1 = int(m.group(2))
-
-      patch.start2 = int(m.group(3))
-      if m.group(4) == '':
-        patch.start2 -= 1
-        patch.length2 = 1
-      elif m.group(4) == '0':
-        patch.length2 = 0
-      else:
-        patch.start2 -= 1
-        patch.length2 = int(m.group(4))
-
-      del text[0]
-
-      while len(text) != 0:
-        if text[0]:
-          sign = text[0][0]
-        else:
-          sign = ''
-        line = urllib.parse.unquote(text[0][1:])
-        if sign == '+':
-          # Insertion.
-          patch.diffs.append((self.DIFF_INSERT, line))
-        elif sign == '-':
-          # Deletion.
-          patch.diffs.append((self.DIFF_DELETE, line))
-        elif sign == ' ':
-          # Minor equality.
-          patch.diffs.append((self.DIFF_EQUAL, line))
-        elif sign == '@':
-          # Start of next patch.
-          break
-        elif sign == '':
-          # Blank line?  Whatever.
-          pass
-        else:
-          # WTF?
-          raise ValueError("Invalid patch mode: '%s'\n%s" % (sign, line))
-        del text[0]
-    return patches
-
 
 class patch_obj:
   """Class representing one patch operation.
   """
+  __slots__ = ('diffs', 'start1', 'start2', 'length1', 'length2')
 
   def __init__(self):
     """Initializes with an empty list of diffs.
@@ -1879,37 +1676,3 @@ class patch_obj:
     self.start2 = None
     self.length1 = 0
     self.length2 = 0
-
-  def __str__(self):
-    """Emulate GNU diff's format.
-    Header: @@ -382,8 +481,9 @@
-    Indices are printed as 1-based, not 0-based.
-
-    Returns:
-      The GNU diff string.
-    """
-    if self.length1 == 0:
-      coords1 = str(self.start1) + ",0"
-    elif self.length1 == 1:
-      coords1 = str(self.start1 + 1)
-    else:
-      coords1 = str(self.start1 + 1) + "," + str(self.length1)
-    if self.length2 == 0:
-      coords2 = str(self.start2) + ",0"
-    elif self.length2 == 1:
-      coords2 = str(self.start2 + 1)
-    else:
-      coords2 = str(self.start2 + 1) + "," + str(self.length2)
-    text = ["@@ -", coords1, " +", coords2, " @@\n"]
-    # Escape the body of the patch with %xx notation.
-    for (op, data) in self.diffs:
-      if op == diff_match_patch.DIFF_INSERT:
-        text.append("+")
-      elif op == diff_match_patch.DIFF_DELETE:
-        text.append("-")
-      elif op == diff_match_patch.DIFF_EQUAL:
-        text.append(" ")
-      # High ascii will raise UnicodeDecodeError.  Use Unicode instead.
-      data = data.encode("utf-8")
-      text.append(urllib.parse.quote(data, "!~*'();/?:@&=+$,# ") + "\n")
-    return "".join(text)
