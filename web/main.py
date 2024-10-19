@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, WebSocketDisconnect,
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from httpx import AsyncClient
 from sentry_sdk import capture_exception, get_baggage, get_traceparent, set_context, trace
 from starlette.websockets import WebSocket
 
@@ -24,12 +25,18 @@ from osm_revert.config import (
     OSM_SECRET,
     OSM_URL,
     TEST_ENV,
+    USER_AGENT,
 )
 from web.revert_worker import revert_worker
-from web.utils import http
 
 if not OSM_CLIENT or not OSM_SECRET:
     raise AssertionError('Web interface requires OSM_CLIENT and OSM_SECRET to be set')
+
+http = AsyncClient(
+    headers={'User-Agent': USER_AGENT},
+    timeout=15,
+    follow_redirects=True,
+)
 
 app = FastAPI()
 app.mount('/static', StaticFiles(directory='web/static', html=True), name='static')
@@ -50,13 +57,13 @@ async def fetch_user_details(request: Request) -> dict | None:
     try:
         return user_cache[access_token]
     except Exception:
-        async with http().get(
+        r = await http.get(
             f'{OSM_API_URL}/api/0.6/user/details.json',
             headers={'Authorization': f'Bearer {access_token}'},
-        ) as r:
-            if not r.ok:
-                return None
-            user: dict = await r.json()
+        )
+        if not r.is_success:
+            return None
+        user = r.json()
 
         if 'img' not in user:
             user['img'] = {'href': None}
@@ -97,7 +104,7 @@ async def callback(request: Request, code: Annotated[str, Query()], state: Annot
     if cookie_state != state:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Invalid OAuth state')
 
-    async with http().post(
+    r = await http.post(
         f'{OSM_URL}/oauth2/token',
         data={
             'client_id': OSM_CLIENT,
@@ -106,9 +113,9 @@ async def callback(request: Request, code: Annotated[str, Query()], state: Annot
             'grant_type': 'authorization_code',
             'code': code,
         },
-        raise_for_status=True,
-    ) as r:
-        access_token = (await r.json())['access_token']
+    )
+    r.raise_for_status()
+    access_token = r.json()['access_token']
 
     response = RedirectResponse('/', status.HTTP_302_FOUND)
     response.set_cookie('access_token', access_token, cookie_max_age, secure=not TEST_ENV, httponly=True)

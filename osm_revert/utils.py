@@ -4,7 +4,6 @@ import time
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import timedelta
-from typing import Any
 
 from httpx import Client
 
@@ -61,13 +60,11 @@ def ensure_iterable(item) -> list | tuple:
     return [item]
 
 
-def get_http_client(base_url: str = '', *, auth: Any | None = None, headers: dict | None = None) -> Client:
-    if not headers:
+def get_http_client(base_url: str = '', *, headers: dict | None = None) -> Client:
+    if headers is None:
         headers = {}
-
     return Client(
         base_url=base_url,
-        auth=auth,
         headers={'User-Agent': USER_AGENT, **headers},
         timeout=30,
         follow_redirects=True,

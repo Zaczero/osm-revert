@@ -1,19 +1,17 @@
 [project]
 dependencies = [
-  "aiohttp[speedups]",
   "cachetools",
-  "certifi",
   "fastapi",
   "githead",
   "gunicorn",
   "httpx[brotli,zstd]",
   "jinja2",
-  "sentry-sdk[fastapi,httpx,aiohttp]",
+  "sentry-sdk[fastapi,httpx]",
   "uvicorn[standard]",
   "xmltodict",
 ]
 name = "osm-revert"
-requires-python = "~=3.12"
+requires-python = "~=3.13"
 version = "0.0.0"
 
 [tool.uv]
@@ -36,7 +34,7 @@ exclude = [
 
 indent-width = 4
 line-length = 120
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 ignore = []
