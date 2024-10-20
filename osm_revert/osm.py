@@ -1,10 +1,14 @@
+from collections.abc import Collection
+from typing import Any
+
 import xmltodict
 
 from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, OSM_API_URL, TAG_MAX_LENGTH, TAG_PREFIX
+from osm_revert.context_logger import context_print
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 
-def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
+def sort_relations_for_osm_change(relations: Collection[dict]) -> list[dict]:
     change_ids = {rel['@id'] for rel in relations}
 
     # tuples: (relation, set of relation ids it depends on)
@@ -12,7 +16,9 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
         rel['@id']: (
             rel,
             change_ids.intersection(
-                m['@ref'] for m in ensure_iterable(rel.get('member', [])) if m['@type'] == 'relation'
+                m['@ref']  #
+                for m in ensure_iterable(rel.get('member', ()))
+                if m['@type'] == 'relation'
             ),
         )
         for rel in relations
@@ -49,7 +55,7 @@ def sort_relations_for_osm_change(relations: list[dict]) -> list[dict]:
     result.extend(reversed(hidden))
 
     for rel, deps in dependency_state.values():
-        print(f'🚧 Warning: relation/{rel["@id"]} has {len(deps)} circular dependencies')
+        context_print(f'🚧 Warning: relation/{rel["@id"]} has {len(deps)} circular dependencies')
         result.append(rel)
 
     return result
@@ -92,45 +98,36 @@ def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
 
 class OsmApi:
     def __init__(self, osm_token: str):
-        self._http = get_http_client(
-            f'{OSM_API_URL}/api',
-            headers={'Authorization': f'Bearer {osm_token}'},
-        )
+        self._http = get_http_client(f'{OSM_API_URL}/api', headers={'Authorization': f'Bearer {osm_token}'})
 
-    @retry_exponential()
-    def get_changeset_max_size(self) -> int:
-        r = self._http.get('/capabilities')
+    @retry_exponential
+    async def get_changeset_max_size(self) -> int:
+        r = await self._http.get('/capabilities')
         r.raise_for_status()
-
         caps = xmltodict.parse(r.text)
-
         return int(caps['osm']['api']['changesets']['@maximum_elements'])
 
-    @retry_exponential()
-    def get_authorized_user(self) -> dict:
-        r = self._http.get('/0.6/user/details.json')
+    @retry_exponential
+    async def get_authorized_user(self) -> dict:
+        r = await self._http.get('/0.6/user/details.json')
         r.raise_for_status()
-
         return r.json()['user']
 
-    @retry_exponential()
-    def get_user(self, uid: str | int) -> dict | None:
-        r = self._http.get(f'/0.6/user/{uid}.json')
-
+    @retry_exponential
+    async def get_user(self, uid: str | int) -> dict | None:
+        r = await self._http.get(f'/0.6/user/{uid}.json')
         # allow for not found users
         if r.status_code in (404, 410):
             return None
-
         r.raise_for_status()
-
         return r.json()['user']
 
-    @retry_exponential()
-    def get_changeset(self, changeset_id: int) -> dict:
-        info_resp = self._http.get(f'/0.6/changeset/{changeset_id}')
+    @retry_exponential
+    async def get_changeset(self, changeset_id: int) -> dict:
+        info_resp = await self._http.get(f'/0.6/changeset/{changeset_id}')
         info_resp.raise_for_status()
 
-        diff_resp = self._http.get(f'/0.6/changeset/{changeset_id}/download')
+        diff_resp = await self._http.get(f'/0.6/changeset/{changeset_id}/download')
         diff_resp.raise_for_status()
 
         info = xmltodict.parse(info_resp.text)
@@ -157,13 +154,13 @@ class OsmApi:
 
         return info | diff
 
-    def upload_diff(self, diff: dict, comment: str, extra_tags: dict[str, str]) -> str | None:
+    async def upload_diff(self, diff: dict, comment: str, extra_tags: dict[str, Any]) -> str | None:
         if 'comment' in extra_tags:
             raise ValueError('comment is a reserved tag')
 
         extra_tags['comment'] = comment
 
-        for key, value in list(extra_tags.items()):
+        for key, value in tuple(extra_tags.items()):
             if key.startswith(TAG_PREFIX):
                 raise ValueError(f'{key!r} is a reserved tag')
 
@@ -184,26 +181,15 @@ class OsmApi:
 
             # trim value if too long
             if len(value) > TAG_MAX_LENGTH:
-                print(f'🚧 Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}')
+                context_print(
+                    f'🚧 Warning: Trimming {key} value because it exceeds {TAG_MAX_LENGTH} characters: {value}'
+                )
                 extra_tags[key] = value[:252] + '…'
 
-        changeset = {
-            'osm': {
-                'changeset': {
-                    'tag': [
-                        {
-                            '@k': k,
-                            '@v': v,
-                        }
-                        for k, v in extra_tags.items()
-                    ]
-                }
-            }
-        }
-
+        changeset = {'osm': {'changeset': {'tag': [{'@k': k, '@v': v} for k, v in extra_tags.items()]}}}
         changeset_xml = xmltodict.unparse(changeset)
 
-        r = self._http.put(
+        r = await self._http.put(
             '/0.6/changeset/create',
             content=changeset_xml,
             headers={'Content-Type': 'text/xml; charset=utf-8'},
@@ -214,36 +200,33 @@ class OsmApi:
         osm_change = build_osm_change(diff, changeset_id)
         osm_change_xml = xmltodict.unparse(osm_change)
 
-        upload_resp = self._http.post(
+        upload_resp = await self._http.post(
             f'/0.6/changeset/{changeset_id}/upload',
             content=osm_change_xml,
             headers={'Content-Type': 'text/xml; charset=utf-8'},
             timeout=150,
         )
 
-        r = self._http.put(f'/0.6/changeset/{changeset_id}/close')
+        r = await self._http.put(f'/0.6/changeset/{changeset_id}/close')
         r.raise_for_status()
 
         if upload_resp.status_code == 409:
-            print(f'🆚 Failed to upload the changes ({upload_resp.status_code})')
-            print(f'🆚 {upload_resp.text}')
-            print('🆚 The Overpass data is outdated, please try again shortly')
+            context_print(f'🆚 Failed to upload the changes ({upload_resp.status_code})')
+            context_print(f'🆚 {upload_resp.text}')
+            context_print('🆚 The Overpass data is outdated, please try again shortly')
             return None
 
         if upload_resp.status_code != 200:
-            print(f'😵 Failed to upload the changes ({upload_resp.status_code})')
-            print(f'😵 {upload_resp.text}')
+            context_print(f'😵 Failed to upload the changes ({upload_resp.status_code})')
+            context_print(f'😵 {upload_resp.text}')
             return None
 
         return changeset_id
 
-    def post_discussion_comment(self, changeset_id: int, comment: str) -> str:
-        r = self._http.post(f'/0.6/changeset/{changeset_id}/comment', data={'text': comment})
-
+    async def post_discussion_comment(self, changeset_id: int, comment: str) -> str:
+        r = await self._http.post(f'/0.6/changeset/{changeset_id}/comment', data={'text': comment})
         if r.is_success:
             return 'OK'
-
         if r.status_code in (429,):
             return 'RATE_LIMITED'
-
         return str(r.status_code)

@@ -1,15 +1,18 @@
+from collections.abc import Collection, Sequence
+from typing import cast
+
+from osm_revert.context_logger import context_print
 from osm_revert.diff_match_patch import diff_match_patch
 
 
-def dmp_retry_reverse(old: list, new: list, current: list) -> list | None:
+def dmp_retry_reverse(old: Collection, new: Sequence, current: Collection) -> list[str] | None:
     if result := dmp(old, new, current):
         return result
-
-    print('[DMP] Retrying in reverse')
+    context_print('[DMP] Retrying in reverse')
     return dmp(old, new[::-1], current)
 
 
-def dmp(old: list, new: list, current: list) -> list | None:
+def dmp(old: Collection, new: Collection, current: Collection) -> list[str] | None:
     old_lines = '\n'.join(old) + '\n'
     new_lines = '\n'.join(new) + '\n'
     current_lines = '\n'.join(current) + '\n'
@@ -26,25 +29,28 @@ def dmp(old: list, new: list, current: list) -> list | None:
 
     # some patches failed to apply
     if not all(result_bools):
-        print('[DMP] Patch failed (not_all)')
+        context_print('[DMP] Patch failed (not_all)')
         return None
 
-    result_lines = d.diff_charsToLinesText(result_text, line_arr)
+    result_lines = cast(str, d.diff_charsToLinesText(result_text, line_arr))
     result = result_lines.strip().split('\n')
 
     # result must not contain duplicates
     if len(result) != len(set(result)):
-        print('[DMP] Patch failed (duplicate)')
+        context_print('[DMP] Patch failed (duplicate)')
         return None
 
+    result_set = set(result)
+    old_set = set(old)
+
     # result must not create any new elements
-    if set(result) - set(old).union(current):
-        print('[DMP] Patch failed (create_new)')
+    if result_set - old_set.union(current):
+        context_print('[DMP] Patch failed (create_new)')
         return None
 
     # result must not delete any common elements
-    if set(old).intersection(current) - set(result):
-        print('[DMP] Patch failed (common_delete)')
+    if old_set.intersection(current) - result_set:
+        context_print('[DMP] Patch failed (common_delete)')
         return None
 
     return result

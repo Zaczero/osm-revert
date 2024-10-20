@@ -1,13 +1,16 @@
 import html
 import re
+from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from itertools import chain, pairwise
 
 import xmltodict
-from httpx import Client
+from httpx import AsyncClient
 
 from osm_revert.config import OVERPASS_URLS, REVERT_TO_DATE
+from osm_revert.context_logger import context_print
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
@@ -55,19 +58,17 @@ def get_current_adiff(timestamp: str) -> str:
     return f'[adiff:"{timestamp}"]'
 
 
-def get_element_types_from_selector(selector: str) -> list[str]:
+@lru_cache(maxsize=128)
+def get_element_types_from_selector(selector: str) -> Sequence[str]:
     if selector in {'node', 'way', 'relation'}:
-        return [selector]
-
+        return (selector,)
     result = []
-
     if 'n' in selector:
         result.append('node')
     if 'w' in selector:
         result.append('way')
     if 'r' in selector:
         result.append('relation')
-
     return result
 
 
@@ -145,37 +146,36 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
     )
 
 
-@retry_exponential()
-def fetch_overpass(http: Client, data: str, *, check_bad_request: bool = False) -> dict | str:
-    response = http.post('/interpreter', data={'data': data}, timeout=300)
+@retry_exponential
+async def fetch_overpass(http: AsyncClient, data: str, *, check_bad_request: bool = False) -> dict | str:
+    r = await http.post('/interpreter', data={'data': data}, timeout=300)
 
-    if check_bad_request and response.status_code == 400:
-        s = response.text.find('<body>')
-        e = response.text.find('</body>')
-
+    if check_bad_request and r.status_code == 400:
+        s = r.text.find('<body>')
+        e = r.text.find('</body>')
         if e > s > -1:
-            body = response.text[s + 6 : e].strip()
+            body = r.text[s + 6 : e].strip()
             body = re.sub(r'<.*?>', '', body, flags=re.DOTALL)
-            lines = [html.unescape(line.strip()[7:]) for line in body.split('\n') if line.strip().startswith('Error: ')]
-
+            lines = tuple(
+                html.unescape(line.strip()[7:])  #
+                for line in body.split('\n')
+                if line.strip().startswith('Error: ')
+            )
             if lines:
                 return '🛑 Overpass - Bad Request:\n' + '\n'.join(f'🛑 {line}' for line in lines)
 
-    response.raise_for_status()  # TODO: return error message instead raise
-    return xmltodict.parse(response.text)
+    r.raise_for_status()  # TODO: return error message instead raise
+    return xmltodict.parse(r.text)
 
 
-def get_current_map(actions: list[dict]) -> dict[str, dict[str, dict]]:
+def get_current_map(actions: Iterable[dict]) -> dict[str, dict[str, dict]]:
     result = {'node': {}, 'way': {}, 'relation': {}}
-
     for action in actions:
         if action['@type'] == 'create':
             element_type, element = next(iter((k, v) for k, v in action.items() if not k.startswith('@')))
         else:
             element_type, element = next(iter(action['new'].items()))
-
         result[element_type][element['@id']] = element
-
     return result
 
 
@@ -189,14 +189,12 @@ def parse_action(action: dict) -> tuple[str, dict | None, dict]:
         element_new = next(iter(action['new'].values()))
     else:
         raise NotImplementedError(f'Unknown action type: {action["@type"]}')
-
     return element_type, element_old, element_new
 
 
 def ensure_visible_tag(element: dict | None) -> None:
     if not element:
         return
-
     if '@visible' not in element:
         element['@visible'] = 'true'
 
@@ -205,7 +203,7 @@ class Overpass:
     def __init__(self):
         self._https = tuple(get_http_client(url) for url in OVERPASS_URLS)
 
-    def get_changeset_elements_history(
+    async def get_changeset_elements_history(
         self,
         changeset: dict,
         steps: int,
@@ -215,30 +213,28 @@ class Overpass:
 
         for http in self._https:
             if errors:
-                print(f'[2/{steps}] Retrying …')
+                context_print(f'[2/{steps}] Retrying …')
 
-            result = self._get_changeset_elements_history(http, changeset, steps, query_filter)
+            result = await self._get_changeset_elements_history(http, changeset, steps, query_filter)
 
-            # everything ok
-            if isinstance(result, dict):
+            if isinstance(result, dict):  # everything ok
                 return result
 
             errors.append(result)
 
         # all errors are the same
         if all(errors[0] == e for e in errors[1:]):
-            print(f'{errors[0]} (x{len(errors)})')
+            context_print(f'{errors[0]} (x{len(errors)})')
         else:
-            print('❗️ Multiple errors occurred:')
-
+            context_print('❗️ Multiple errors occurred:')
             for i, error in enumerate(errors):
-                print(f'[{i + 1}/{len(errors)}]: {error}')
+                context_print(f'[{i + 1}/{len(errors)}]: {error}')
 
         return None
 
-    def _get_changeset_elements_history(
+    async def _get_changeset_elements_history(
         self,
-        http: Client,
+        http: AsyncClient,
         changeset: dict,
         steps: int,
         query_filter: str,
@@ -254,12 +250,12 @@ class Overpass:
             query_unfiltered = build_query_filtered(element_ids, '')
 
             partition_query = f'[timeout:180]{bbox}{partition_adiff};{query_unfiltered}'
-            partition_diff = fetch_overpass(http, partition_query)
+            partition_diff = await fetch_overpass(http, partition_query)
 
             if isinstance(partition_diff, str):
                 return partition_diff
 
-            partition_action = ensure_iterable(partition_diff['osm'].get('action', []))
+            partition_action = ensure_iterable(partition_diff['osm'].get('action', ()))
 
             if parse_timestamp(partition_diff['osm']['meta']['@osm_base']) <= parse_timestamp(timestamp):
                 return '🕒️ Overpass is updating, please try again shortly'
@@ -274,12 +270,12 @@ class Overpass:
                 query_filtered = build_query_filtered(element_ids, query_filter)
 
                 filtered_query = f'[timeout:180]{bbox}{partition_adiff};{query_filtered}'
-                filtered_diff = fetch_overpass(http, filtered_query, check_bad_request=True)
+                filtered_diff = await fetch_overpass(http, filtered_query, check_bad_request=True)
 
                 if isinstance(filtered_diff, str):
                     return filtered_diff
 
-                filtered_action = ensure_iterable(filtered_diff['osm'].get('action', []))
+                filtered_action = ensure_iterable(filtered_diff['osm'].get('action', ()))
 
                 dedup_node_ids = set()
                 data_map = {'node': {}, 'way': {}, 'relation': {}}
@@ -318,15 +314,15 @@ class Overpass:
                 changeset_edits.extend(parse_action(a) for a in partition_action)
 
             current_query = f'[timeout:180]{bbox}{current_adiff};{query_unfiltered}'
-            current_diff = fetch_overpass(http, current_query)
+            current_diff = await fetch_overpass(http, current_query)
 
             if isinstance(current_diff, str):
                 return current_diff
 
-            current_partition_action = ensure_iterable(current_diff['osm'].get('action', []))
+            current_partition_action = ensure_iterable(current_diff['osm'].get('action', ()))
             current_action.extend(current_partition_action)
 
-            print(f'[{i + 2}/{steps}] Partition #{i + 1}: OK')
+            context_print(f'[{i + 2}/{steps}] Partition #{i + 1}: OK')
 
         current_map = get_current_map(current_action)
 
@@ -334,7 +330,7 @@ class Overpass:
 
         for element_type, element_old, element_new in changeset_edits:
             # TODO: skip checks by time
-            # NOTE: this ma happen legitimately when there are multiple changesets at the same time
+            # NOTE: this may happen legitimately when there are multiple changesets at the same time
             # if element_new['@changeset'] != changeset_id:
             #     return '❓ Overpass data is corrupted (bad_changeset)'
 
@@ -342,7 +338,7 @@ class Overpass:
             # if element_old and int(element_new['@version']) - int(element_old['@version']) != 1:
             #     return '❓ Overpass data is corrupted (bad_version)'
 
-            # NOTE: this ma happen legitimately when there are multiple changesets at the same time
+            # NOTE: this may happen legitimately when there are multiple changesets at the same time
             # if not element_old and int(element_new['@version']) == 2 and not REVERT_TO_DATE:
             #     return '❓ Overpass data is corrupted (impossible_create)'
 
@@ -358,14 +354,13 @@ class Overpass:
 
         return result
 
-    def update_parents(self, invert: dict, fix_parents: bool) -> int:
-        counter = 0
-
+    async def update_parents(self, invert: dict[str, list], fix_parents: bool) -> int:
         internal_ids = {
             'node': {e['@id'] for e in invert['node']},
             'way': {e['@id'] for e in invert['way']},
             'relation': {e['@id'] for e in invert['relation']},
         }
+        counter = 0
 
         for _ in range(10):
             deleting_ids = {
@@ -382,7 +377,7 @@ class Overpass:
             query_by_ids = build_query_parents_by_ids(deleting_ids)
 
             parents_query = f'[timeout:180];{query_by_ids}'
-            data = fetch_overpass(self._https[0], parents_query)
+            data = await fetch_overpass(self._https[0], parents_query)
 
             if isinstance(data, str):
                 return data
@@ -394,9 +389,9 @@ class Overpass:
             }
 
             parents = {
-                'node': ensure_iterable(data['osm'].get('node', [])),
-                'way': ensure_iterable(data['osm'].get('way', [])),
-                'relation': ensure_iterable(data['osm'].get('relation', [])),
+                'node': ensure_iterable(data['osm'].get('node', ())),
+                'way': ensure_iterable(data['osm'].get('way', ())),
+                'relation': ensure_iterable(data['osm'].get('relation', ())),
             }
 
             changed = False
@@ -420,7 +415,7 @@ class Overpass:
                     deleting_child_ids = {'node': set(), 'way': set(), 'relation': set()}
 
                     if element_type == 'way':
-                        element['nd'] = ensure_iterable(element.get('nd', []))
+                        element['nd'] = ensure_iterable(element.get('nd', ()))
                         new_nds = []
 
                         for nd in element['nd']:
@@ -433,13 +428,13 @@ class Overpass:
 
                         # delete single node ways
                         if len(element['nd']) == 1:
-                            element['nd'] = []
+                            element['nd'] = ()
 
                         if not element['nd']:
                             element['@visible'] = 'false'
 
                     elif element_type == 'relation':
-                        element['member'] = ensure_iterable(element.get('member', []))
+                        element['member'] = ensure_iterable(element.get('member', ()))
                         new_members = []
 
                         for m in element['member']:

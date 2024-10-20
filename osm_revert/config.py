@@ -11,7 +11,7 @@ USER_AGENT = f'osm-revert/{VERSION} (+https://github.com/Zaczero/osm-revert)'
 
 TEST_ENV = os.getenv('TEST_ENV', '0').strip().lower() in ('1', 'true', 'yes')
 if TEST_ENV:
-    print('[CONF] Running in test environment')
+    print('[CONF] Running in test environment')  # noqa: T201
 
 CHANGESETS_LIMIT_CONFIG = {
     '': {

@@ -1,10 +1,8 @@
-import asyncio
 import os
 import re
-from asyncio import Semaphore, get_running_loop, timeout
+from asyncio import Queue, QueueShutDown, Semaphore, TaskGroup, timeout
 from collections import defaultdict
-from io import TextIOWrapper
-from multiprocessing import Pipe, Process
+from contextlib import suppress
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -14,7 +12,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from httpx import AsyncClient
-from sentry_sdk import capture_exception, get_baggage, get_traceparent, set_context, trace
+from sentry_sdk import capture_exception, start_span, trace
 from starlette.websockets import WebSocket
 
 from osm_revert.config import (
@@ -27,7 +25,8 @@ from osm_revert.config import (
     TEST_ENV,
     USER_AGENT,
 )
-from web.revert_worker import revert_worker
+from osm_revert.context_logger import context_logger
+from osm_revert.main import main as revert_main
 
 if not OSM_CLIENT or not OSM_SECRET:
     raise AssertionError('Web interface requires OSM_CLIENT and OSM_SECRET to be set')
@@ -172,7 +171,7 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
             raise ValueError(f'Missing argument: {required_arg!r}')
 
     changesets = re.split(r'(?:;|,|\s)+', args['changesets'])
-    changesets = [c.strip() for c in changesets if c.strip()]
+    changesets = tuple(c.strip() for c in changesets if c.strip())
     query_filter: str = args['query_filter'].strip()
     comment: str = re.sub(r'\s{2,}', ' ', args['comment']).strip()
     upload: bool = args['upload']
@@ -196,44 +195,23 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
     changeset_ids = tuple(map(int, changesets))
     print_osc = not upload
 
-    r, w = Pipe(duplex=False)
-    kwargs = {
-        'conn': w,
-        'changeset_ids': changeset_ids,
-        'comment': comment,
-        'osm_token': access_token,
-        'discussion': discussion,
-        'discussion_target': discussion_target,
-        'print_osc': print_osc,
-        'query_filter': query_filter,
-        'fix_parents': fix_parents,
-        'sentry_headers': {'sentry-trace': get_traceparent(), 'baggage': get_baggage()},
-    }
-    set_context('revert', kwargs)
-    loop = get_running_loop()
+    async def queue_processor(queue: Queue):
+        with suppress(QueueShutDown):
+            while True:
+                await ws.send_json({'message': await queue.get()})
 
-    @trace
-    async def process_task():
-        with w:
-            proc = Process(target=revert_worker, kwargs=kwargs)
-            proc.start()
-
-            try:
-                async with timeout(1800):  # 30 minutes
-                    await loop.run_in_executor(None, proc.join)
-                    return proc.exitcode
-            finally:
-                if proc.is_alive():
-                    proc.terminate()
-                    await loop.run_in_executor(None, proc.join)
-
-    task = asyncio.create_task(process_task())
-
-    try:
-        with r, TextIOWrapper(os.fdopen(r.fileno(), 'rb', 0, closefd=False)) as reader:
-            while line := await loop.run_in_executor(None, reader.readline):
-                await ws.send_json({'message': line.rstrip(' \n')})
-        exitcode = await task
-        return f'Exit code: {exitcode}'
-    finally:
-        task.cancel()
+    async with TaskGroup() as tg:
+        with context_logger() as queue, start_span(op='revert', name='revert'):
+            tg.create_task(queue_processor(queue))
+            async with timeout(1800):  # 30 minutes
+                exit_code = await revert_main(
+                    changeset_ids=changeset_ids,
+                    comment=comment,
+                    osm_token=access_token,
+                    discussion=discussion,
+                    discussion_target=discussion_target,
+                    print_osc=print_osc,
+                    query_filter=query_filter,
+                    fix_parents=fix_parents,
+                )
+    return f'Exit code: {exit_code}'

@@ -1,17 +1,34 @@
 import json
+from collections import Counter
 from copy import deepcopy
+from typing import TypedDict
 
+from osm_revert.context_logger import context_print
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.dmp_utils import dmp_retry_reverse
-from osm_revert.utils import ensure_iterable, limit_execution_count
+from osm_revert.utils import ensure_iterable
 
-
-def _set_visible_original(target: dict | None, current: dict):
-    if target and '@visible:original' not in target:
-        target['@visible:original'] = current['@visible']
+StatisticsDict = TypedDict(
+    'StatisticsDict',
+    {
+        'fix:node': int,
+        'fix:way': int,
+        'fix:relation': int,
+        'dmp:way': int,
+        'dmp:way:id': list[str | int],
+        'dmp:relation': int,
+        'dmp:relation:id': list[str | int],
+        'dmp:fail:way': int,
+        'dmp:fail:way:id': list[str | int],
+        'dmp:fail:relation': int,
+        'dmp:fail:relation:id': list[str | int],
+    },
+)
 
 
 class Inverter:
+    __slots__ = ('_only_tags', '_current_map', '_version_map', '_run_counter', 'statistics', 'warnings')
+
     def __init__(self, only_tags: frozenset[str]) -> None:
         self._only_tags = only_tags
 
@@ -21,7 +38,9 @@ class Inverter:
         # store latest versions of elements (for osmChange upload)
         self._version_map = {'node': {}, 'way': {}, 'relation': {}}
 
-        self.statistics: dict = {
+        self._run_counter: Counter[str] = Counter()
+
+        self.statistics: StatisticsDict = {
             'fix:node': 0,
             'fix:way': 0,
             'fix:relation': 0,
@@ -37,7 +56,14 @@ class Inverter:
 
         self.warnings: dict[str, list[str]] = {'node': [], 'way': [], 'relation': []}
 
-    def invert_diff(self, diff: dict[str, list[DiffEntry]]) -> dict:
+    def _should_print(self, name: str, limit: int) -> bool:
+        self._run_counter.update((name,))
+        current = self._run_counter[name]
+        if current == limit + 1:
+            context_print(f'🔇 Suppressing further messages for {name!r}')
+        return current <= limit
+
+    def invert_diff(self, diff: dict[str, list[DiffEntry]]) -> dict[str, list]:
         for element_type, elements in diff.items():
             for entry in elements:
                 element_id = entry.element_id
@@ -59,11 +85,12 @@ class Inverter:
                 self._invert_element(element_type, element_id, old, new, current)
 
         result = {
-            element_type: list(element_id_map.values()) for element_type, element_id_map in self._current_map.items()
+            element_type: list(element_id_map.values())  #
+            for element_type, element_id_map in self._current_map.items()
         }
 
         for element_type, elements in result.items():
-            for element in list(elements):
+            for element in elements.copy():
                 # restore latest version number (for valid osmChange)
                 element['@version'] = self._version_map[element_type][element['@id']]
 
@@ -75,7 +102,7 @@ class Inverter:
 
         # convert [a, b, c] to 'a;b;c'
         for key, value in self.statistics.items():
-            if value and isinstance(value, list):
+            if value and isinstance(value, list | tuple):
                 self.statistics[key] = ';'.join(value)
 
         return result
@@ -100,12 +127,12 @@ class Inverter:
 
             # advanced revert (element currently is not deleted)
             elif current['@visible'] == 'true':
-                if not limit_execution_count('advanced revert', 50):
-                    print(f'🛠️ Performing advanced revert on {element_type}/{element_id}')
+                if self._should_print('advanced revert', 50):
+                    context_print(f'🛠️ Performing advanced revert on {element_type}/{element_id}')
 
                 self.statistics[f'fix:{element_type}'] += 1
 
-                current['tag'] = ensure_iterable(current.get('tag', []))
+                current['tag'] = ensure_iterable(current.get('tag', ()))
                 current_original = deepcopy(current)
 
                 self._invert_tags(old, new, current)
@@ -137,15 +164,15 @@ class Inverter:
             raise Exception(f'Invalid state: {old!r}, {new!r}')
 
     def _invert_tags(self, old: dict, new: dict, current: dict) -> None:
-        old_tags = {d['@k']: d['@v'] for d in ensure_iterable(old.get('tag', []))}
-        new_tags = {d['@k']: d['@v'] for d in ensure_iterable(new.get('tag', []))}
-        current_tags = {d['@k']: d['@v'] for d in ensure_iterable(current.get('tag', []))}
+        old_tags = {d['@k']: d['@v'] for d in ensure_iterable(old.get('tag', ()))}
+        new_tags = {d['@k']: d['@v'] for d in ensure_iterable(new.get('tag', ()))}
+        current_tags = {d['@k']: d['@v'] for d in ensure_iterable(current.get('tag', ()))}
 
         self._invert_tags_create(old_tags, new_tags, current_tags)
         self._invert_tags_modify(old_tags, new_tags, current_tags)
         self._invert_tags_delete(old_tags, new_tags, current_tags)
 
-        current['tag'] = [{'@k': k, '@v': v} for k, v in current_tags.items()]
+        current['tag'] = tuple({'@k': k, '@v': v} for k, v in current_tags.items())
 
     def _invert_tags_create(self, old_tags: dict, new_tags: dict, current_tags: dict) -> None:
         changed_items = set(new_tags.items()) - set(old_tags.items())
@@ -214,16 +241,16 @@ class Inverter:
         current['@lon'] = old['@lon']
 
     def _invert_way_nodes(self, old: dict, new: dict, current: dict) -> None:
-        old_nodes = [json.dumps(n) for n in ensure_iterable(old.get('nd', []))]
-        new_nodes = [json.dumps(n) for n in ensure_iterable(new.get('nd', []))]
-        current_nodes = [json.dumps(n) for n in ensure_iterable(current.get('nd', []))]
+        old_nodes = tuple(json.dumps(n) for n in ensure_iterable(old.get('nd', ())))
+        new_nodes = tuple(json.dumps(n) for n in ensure_iterable(new.get('nd', ())))
+        current_nodes = tuple(json.dumps(n) for n in ensure_iterable(current.get('nd', ())))
 
         # ignore unmodified
         if old_nodes == new_nodes:
             return
 
         # already reverted
-        if current_nodes != new_nodes and set(old_nodes) == set(current_nodes):
+        if current_nodes != new_nodes and not set(old_nodes).symmetric_difference(current_nodes):
             return
 
         # simple revert if no more edits
@@ -231,27 +258,31 @@ class Inverter:
             current['nd'] = old['nd']
             return
 
-        print(f'💡 Performing DMP patch on way/{new["@id"]}')
+        context_print(f'💡 Performing DMP patch on way/{new["@id"]}')
 
         if patch := dmp_retry_reverse(old_nodes, new_nodes, current_nodes):
-            current['nd'] = [json.loads(p) for p in patch]
-            print('[DMP][☑️] Patch successful')
+            current['nd'] = tuple(json.loads(p) for p in patch)
+            context_print('[DMP][☑️] Patch successful')
             self.statistics['dmp:way'] += 1
             self.statistics['dmp:way:id'].append(new['@id'])
         else:
             # absolute delete
-            create_diff = {n['@ref'] for n in ensure_iterable(new.get('nd', []))}
-            create_diff = create_diff.difference(n['@ref'] for n in ensure_iterable(old.get('nd', [])))
-            current['nd'] = [n for n in ensure_iterable(current.get('nd', [])) if n['@ref'] not in create_diff]
+            create_diff = {n['@ref'] for n in ensure_iterable(new.get('nd', ()))}
+            create_diff = create_diff.difference(n['@ref'] for n in ensure_iterable(old.get('nd', ())))
+            current['nd'] = tuple(
+                n  #
+                for n in ensure_iterable(current.get('nd', ()))
+                if n['@ref'] not in create_diff
+            )
 
             self.statistics['dmp:fail:way'] += 1
             self.statistics['dmp:fail:way:id'].append(new['@id'])
             self.warnings['way'].append(new['@id'])
 
     def _invert_relation_members(self, old: dict, new: dict, current: dict) -> None:
-        old_members = [json.dumps(m) for m in ensure_iterable(old.get('member', []))]
-        new_members = [json.dumps(m) for m in ensure_iterable(new.get('member', []))]
-        current_members = [json.dumps(m) for m in ensure_iterable(current.get('member', []))]
+        old_members = tuple(json.dumps(m) for m in ensure_iterable(old.get('member', ())))
+        new_members = tuple(json.dumps(m) for m in ensure_iterable(new.get('member', ())))
+        current_members = tuple(json.dumps(m) for m in ensure_iterable(current.get('member', ())))
 
         # ignore unmodified
         if old_members == new_members:
@@ -266,19 +297,28 @@ class Inverter:
             current['member'] = old['member']
             return
 
-        print(f'💡 Performing DMP patch relation/{new["@id"]}')
+        context_print(f'💡 Performing DMP patch relation/{new["@id"]}')
 
         if patch := dmp_retry_reverse(old_members, new_members, current_members):
-            current['member'] = [json.loads(p) for p in patch]
-            print('✅ Patch successful')
+            current['member'] = tuple(json.loads(p) for p in patch)
+            context_print('✅ Patch successful')
             self.statistics['dmp:relation'] += 1
             self.statistics['dmp:relation:id'].append(new['@id'])
         else:
             # absolute delete
-            create_diff = {m['@ref'] for m in ensure_iterable(new.get('member', []))}
-            create_diff = create_diff.difference(m['@ref'] for m in ensure_iterable(old.get('member', [])))
-            current['member'] = [m for m in ensure_iterable(current.get('member', [])) if m['@ref'] not in create_diff]
+            create_diff = {m['@ref'] for m in ensure_iterable(new.get('member', ()))}
+            create_diff = create_diff.difference(m['@ref'] for m in ensure_iterable(old.get('member', ())))
+            current['member'] = tuple(
+                m  #
+                for m in ensure_iterable(current.get('member', ()))
+                if m['@ref'] not in create_diff
+            )
 
             self.statistics['dmp:fail:relation'] += 1
             self.statistics['dmp:fail:relation:id'].append(new['@id'])
             self.warnings['relation'].append(new['@id'])
+
+
+def _set_visible_original(target: dict | None, current: dict):
+    if target and '@visible:original' not in target:
+        target['@visible:original'] = current['@visible']
