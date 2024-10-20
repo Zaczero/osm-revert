@@ -36,7 +36,6 @@ def get_old_date(timestamp: str) -> str:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
     date = datetime.strptime(timestamp, date_format).replace(tzinfo=UTC)
     created_at_minus_one = (date - timedelta(seconds=1)).strftime(date_format)
-
     return f'[date:"{created_at_minus_one}"]'
 
 
