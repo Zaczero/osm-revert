@@ -1,8 +1,8 @@
 import asyncio
 import random
 import time
-from collections.abc import Collection
-from functools import lru_cache, wraps
+from collections.abc import Iterable
+from functools import wraps
 
 from httpx import AsyncClient
 
@@ -51,6 +51,5 @@ def get_http_client(base_url: str = '', *, headers: dict | None = None) -> Async
     )
 
 
-@lru_cache(maxsize=128)
-def is_osm_moderator(roles: Collection[str]) -> bool:
+def is_osm_moderator(roles: Iterable[str]) -> bool:
     return bool({'moderator', 'administrator'}.intersection(roles))
