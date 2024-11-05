@@ -123,31 +123,31 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.115.2"
+version = "0.115.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "starlette" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/22/fa/19e3c7c9b31ac291987c82e959f36f88840bea183fa3dc3bb654669f19c1/fastapi-0.115.2.tar.gz", hash = "sha256:3995739e0b09fa12f984bce8fa9ae197b35d433750d3d312422d846e283697ee", size = 299968 }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/db/5781f19bd30745885e0737ff3fdd4e63e7bc691710f9da691128bb0dc73b/fastapi-0.115.4.tar.gz", hash = "sha256:db653475586b091cb8b2fec2ac54a680ac6a158e07406e1abae31679e8826349", size = 300737 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/14/bbe7776356ef01f830f8085ca3ac2aea59c73727b6ffaa757abeb7d2900b/fastapi-0.115.2-py3-none-any.whl", hash = "sha256:61704c71286579cc5a598763905928f24ee98bfcc07aabe84cfefb98812bbc86", size = 94650 },
+    { url = "https://files.pythonhosted.org/packages/99/f6/af0d1f58f86002be0cf1e2665cdd6f7a4a71cdc8a7a9438cdc9e3b5375fe/fastapi-0.115.4-py3-none-any.whl", hash = "sha256:0b504a063ffb3cf96a5e27dc1bc32c80ca743a2528574f9cdc77daa2d31b4742", size = 94732 },
 ]
 
 [[package]]
 name = "githead"
-version = "1.0.0"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a4/cf/cc5a3dba6fee4b5c2262b81b041b54c41a0cf7592473d294889b88ff7a14/githead-1.0.0.tar.gz", hash = "sha256:e9ca6bbffa2eed8f05f3549b8f21be385b1b6036eef49afea8945c7728f4fe8c", size = 12044 }
+sdist = { url = "https://files.pythonhosted.org/packages/af/d2/182954261abd0446ebaf3f9f1a9f1d63fc5752e2de8937c31680074e4d2c/githead-1.1.0.tar.gz", hash = "sha256:f10c63ca22919eb9d50042afc65a08e0da05e4975e5ff650a357276c3a8a9cc5", size = 12022 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/3f/cf71025decda78a3ee70048f015400b7606d6a5672289fd2e42ab9442722/githead-1.0.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d9e6826c3cbdaec899bb8bf1ba7369cc01622e20744f49c5bc66bc10795f9c69", size = 204704 },
-    { url = "https://files.pythonhosted.org/packages/e3/ce/00cce15c003774d9cd1851aa7cce15eb97a93b92bc19bae015bca75eb3cb/githead-1.0.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:68b95e181d3476fb22e6da539731a040a4813f104bc6d1f3a773fa53132ca2b2", size = 199716 },
-    { url = "https://files.pythonhosted.org/packages/11/c0/ccf19778edd1cf77f181542a3cac10173440e6e5ded0c67d6bb22b2f3411/githead-1.0.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2062e0f0b4de2f80e1c4667d8ee14aef8d98c823a0b6881b9f39bc655e7d4a73", size = 206858 },
-    { url = "https://files.pythonhosted.org/packages/66/ed/0c1b1f590264394f5db0cbb000c60b5e33b258b165678592f78d611d19c9/githead-1.0.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cb49907d0e5b2ffdb1723e14bd69c531bffa3e6c0d3421c73b3a811807554a53", size = 215623 },
-    { url = "https://files.pythonhosted.org/packages/66/37/3523971aa04b9df748fc35003463e4b509e31d9cf40989e2ed5db11f5996/githead-1.0.0-cp38-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:23409ada992f850a81363316bc8ab74f2b1435a4784512ac7b71abf39dae0fbb", size = 412973 },
-    { url = "https://files.pythonhosted.org/packages/33/1a/628c9dff67d11c0ba48beb2a04c698008a8afde695e85ac6424ca989ba35/githead-1.0.0-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:8b71282277e2de72b55b49959140504112a98cad332b23a9dd537916fd6d467b", size = 397156 },
-    { url = "https://files.pythonhosted.org/packages/0d/6f/fc794573c082708bceb883b5ad879197e81d20e6b49c417896836b745185/githead-1.0.0-cp38-abi3-win_amd64.whl", hash = "sha256:0313bb27e3884a3fcc3cf6f0714b316a753999d271101d650b3c5dd9236b7acb", size = 111759 },
+    { url = "https://files.pythonhosted.org/packages/f0/73/f20ee30ddfc5f4b890a9c55f9f8bf524e023717407b081a757d946e420f1/githead-1.1.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:f1bf6d0f0a995d1a998b0a9cfb1bd228adc3ea763e38cc82844e5e63557999de", size = 204879 },
+    { url = "https://files.pythonhosted.org/packages/01/f5/3bd4954c786eb59cb9fab7c47a970d340a16ce320067cd2c566390fa7ef4/githead-1.1.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:397dafcc3bf38eb8e17f0ef6da2a7167d90ab541bdc36a87e3af739fd4a230c5", size = 200165 },
+    { url = "https://files.pythonhosted.org/packages/87/ef/443adeb9a49f028d8ff4b3e06a938415271b0800f6cfaa832980e6b29f07/githead-1.1.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5a0f1fd9c919acbc54c2a7afa04e58db72eba1f33d1fd880228433bc09d7a3f5", size = 207184 },
+    { url = "https://files.pythonhosted.org/packages/68/06/3195fd167dddf0cefe912fbfa23d26e806283669dbea19f0479430cb4475/githead-1.1.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0ac22b3ab19e6478320da7ff11b7d7261d51856beef889989f33a69ce857f86c", size = 216001 },
+    { url = "https://files.pythonhosted.org/packages/e7/a3/97267194521a333b009339561115b73a72e3b82b9248d5266e0a39c77a40/githead-1.1.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:16bc1778634564487071df919c279b3f21b21c7521b88cf7c93fa315930fda97", size = 413572 },
+    { url = "https://files.pythonhosted.org/packages/7e/a9/bcfd1cb8d3196b10e5c27243473e4e9cb0c518702fab0ba34063ceb3a9b4/githead-1.1.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:f87613a2786acfc3028ca8adf49273940f38582adece8db33f4741ef8cc510c2", size = 397840 },
+    { url = "https://files.pythonhosted.org/packages/45/6f/d39034319c32b3573733f9eeb3974585a7648fea5b843d258f97c048963d/githead-1.1.0-cp39-abi3-win_amd64.whl", hash = "sha256:853dcd438226ba9a9bd3fe19c688a38d5683f77f459d570d62bac8831d0734d5", size = 111784 },
 ]
 
 [[package]]
@@ -385,15 +385,15 @@ wheels = [
 
 [[package]]
 name = "sentry-sdk"
-version = "2.17.0"
+version = "2.18.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/83/7d0956a71ac894717099be3669ca7b8f164bccbcfb570b2f02817d0a0068/sentry_sdk-2.17.0.tar.gz", hash = "sha256:dd0a05352b78ffeacced73a94e86f38b32e2eae15fff5f30ca5abb568a72eacf", size = 290959 }
+sdist = { url = "https://files.pythonhosted.org/packages/24/cc/0d87cc8246f52d92228aa6718a24e1988a2893f4abe2f64ec5a8bcba4185/sentry_sdk-2.18.0.tar.gz", hash = "sha256:0dc21febd1ab35c648391c664df96f5f79fb0d92d7d4225cd9832e53a617cafd", size = 293615 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/63/8e80fff3aa15488bc332ede44165a397a29bb13ec4a4b2236299e3b66067/sentry_sdk-2.17.0-py2.py3-none-any.whl", hash = "sha256:625955884b862cc58748920f9e21efdfb8e0d4f98cca4ab0d3918576d5b606ad", size = 314520 },
+    { url = "https://files.pythonhosted.org/packages/76/9b/2d512efdb0de203d1f0312fae53433c3009ba70b0078421d25baaedc960a/sentry_sdk-2.18.0-py2.py3-none-any.whl", hash = "sha256:ee70e27d1bbe4cd52a38e1bd28a5fadb9b17bc29d91b5f2b97ae29c0a7610442", size = 317514 },
 ]
 
 [package.optional-dependencies]
@@ -415,14 +415,14 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "0.40.0"
+version = "0.41.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4b/cb/244daf0d7be4508099ad5bca3cdfe8b8b5538acd719c5f397f614e569fff/starlette-0.40.0.tar.gz", hash = "sha256:1a3139688fb298ce5e2d661d37046a66ad996ce94be4d4983be019a23a04ea35", size = 2573611 }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/da/1fb4bdb72ae12b834becd7e1e7e47001d32f91ec0ce8d7bc1b618d9f0bd9/starlette-0.41.2.tar.gz", hash = "sha256:9834fd799d1a87fd346deb76158668cfa0b0d56f85caefe8268e2d97c3468b62", size = 2573867 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/0f/64baf7a06492e8c12f5c4b49db286787a7255195df496fc21f5fd9eecffa/starlette-0.40.0-py3-none-any.whl", hash = "sha256:c494a22fae73805376ea6bf88439783ecfba9aac88a43911b48c653437e784c4", size = 73303 },
+    { url = "https://files.pythonhosted.org/packages/54/43/f185bfd0ca1d213beb4293bed51d92254df23d8ceaf6c0e17146d508a776/starlette-0.41.2-py3-none-any.whl", hash = "sha256:fbc189474b4731cf30fcef52f18a8d070e3f3b46c6a04c97579e85e6ffca942d", size = 73259 },
 ]
 
 [[package]]

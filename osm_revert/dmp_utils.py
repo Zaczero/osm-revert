@@ -5,14 +5,14 @@ from osm_revert.context_logger import context_print
 from osm_revert.diff_match_patch import diff_match_patch
 
 
-def dmp_retry_reverse(old: Collection, new: Sequence, current: Collection) -> list[str] | None:
+def dmp_retry_reverse(old: Collection[str], new: Sequence[str], current: Collection[str]) -> list[str] | None:
     if result := dmp(old, new, current):
         return result
     context_print('[DMP] Retrying in reverse')
     return dmp(old, new[::-1], current)
 
 
-def dmp(old: Collection, new: Collection, current: Collection) -> list[str] | None:
+def dmp(old: Collection[str], new: Collection[str], current: Collection[str]) -> list[str] | None:
     old_lines = '\n'.join(old) + '\n'
     new_lines = '\n'.join(new) + '\n'
     current_lines = '\n'.join(current) + '\n'

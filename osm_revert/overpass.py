@@ -14,6 +14,12 @@ from osm_revert.context_logger import context_print
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
+_RE_REL_ALIAS = re.compile(r'\brel\b')
+_RE_NEG_ID_FILTER = re.compile(r'\(\s*!\s*id\s*:(?P<id>(\s*(,\s*)?\d+)+)\s*\)')
+_RE_TYPE_SELECTOR_GREEDY = re.compile(r'.*\b(nwr|nw|nr|wr|node|way|relation)\b', flags=re.DOTALL)
+_RE_TYPE_SELECTOR = re.compile(r'\b(nwr|nw|nr|wr|node|way|relation)\b')
+_RE_XML_TAG = re.compile(r'<.*?>', flags=re.DOTALL)
+
 
 def parse_timestamp(timestamp: str) -> int:
     date_format = '%Y-%m-%dT%H:%M:%SZ'
@@ -91,7 +97,7 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
 
     # replace 'rel' alias with 'relation'
     for match in sorted(
-        re.finditer(r'\brel\b', query_filter),
+        _RE_REL_ALIAS.finditer(query_filter),
         key=lambda m: m.start(),
         reverse=True,
     ):
@@ -100,13 +106,13 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
 
     # handle custom (!id:)
     for match in sorted(
-        re.finditer(r'\(\s*!\s*id\s*:(?P<id>(\s*(,\s*)?\d+)+)\s*\)', query_filter),
+        _RE_NEG_ID_FILTER.finditer(query_filter),
         key=lambda m: m.start(),
         reverse=True,
     ):
         start, end = match.start(), match.end()
         invert_ids = (i.strip() for i in match.group('id').split(',') if i.strip())
-        selector = re.match(r'.*\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter[:start], re.DOTALL).group(1)
+        selector = _RE_TYPE_SELECTOR_GREEDY.match(query_filter[:start]).group(1)  # pyright: ignore[reportOptionalMemberAccess]
 
         new_ids = set(chain.from_iterable(element_ids[et] for et in get_element_types_from_selector(selector)))
         new_ids = new_ids.difference(invert_ids)
@@ -116,7 +122,7 @@ def build_query_filtered(element_ids: dict, query_filter: str) -> str:
 
     # apply element id filtering
     for match in sorted(
-        re.finditer(r'\b(nwr|nw|nr|wr|node|way|relation)\b', query_filter),
+        _RE_TYPE_SELECTOR.finditer(query_filter),
         key=lambda m: m.start(),
         reverse=True,
     ):
@@ -154,7 +160,7 @@ async def fetch_overpass(http: AsyncClient, data: str, *, check_bad_request: boo
         e = r.text.find('</body>')
         if e > s > -1:
             body = r.text[s + 6 : e].strip()
-            body = re.sub(r'<.*?>', '', body, flags=re.DOTALL)
+            body = _RE_XML_TAG.sub('', body)
             lines = tuple(
                 html.unescape(line.strip()[7:])  #
                 for line in body.split('\n')

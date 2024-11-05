@@ -6,6 +6,7 @@ from functools import wraps
 
 import uvloop
 import xmltodict
+from pydantic import SecretStr
 
 from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, OSM_URL, WEBSITE
 from osm_revert.context_logger import context_print
@@ -82,7 +83,7 @@ async def main(
     changeset_ids: Sequence[int],
     comment: str,
     *,
-    osm_token: str,
+    access_token: SecretStr,
     discussion: str = '',
     discussion_target: str = 'all',
     osc_file: str | None = None,
@@ -98,7 +99,7 @@ async def main(
     only_tags_set = frozenset(tag.strip() for tag in only_tags if tag)
 
     context_print('🔒️ Logging in to OpenStreetMap')
-    osm = OsmApi(osm_token)
+    osm = OsmApi(access_token)
     user = await osm.get_authorized_user()
 
     user_edits = user['changesets']['count']
@@ -260,6 +261,6 @@ if __name__ == '__main__':
             print_osc=True,
             query_filter='',
             fix_parents=True,
-            osm_token=os.environ['OSM_TOKEN'],
+            access_token=SecretStr(os.environ['OSM_TOKEN']),
         )
     )

@@ -1672,7 +1672,7 @@ class patch_obj:
     """Initializes with an empty list of diffs.
     """
     self.diffs = []
-    self.start1 = None
-    self.start2 = None
+    self.start1: int | None = None
+    self.start2: int | None = None
     self.length1 = 0
     self.length2 = 0

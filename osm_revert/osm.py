@@ -2,6 +2,7 @@ from collections.abc import Collection
 from typing import Any
 
 import xmltodict
+from pydantic import SecretStr
 
 from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, OSM_API_URL, TAG_MAX_LENGTH, TAG_PREFIX
 from osm_revert.context_logger import context_print
@@ -97,8 +98,11 @@ def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
 
 
 class OsmApi:
-    def __init__(self, osm_token: str):
-        self._http = get_http_client(f'{OSM_API_URL}/api', headers={'Authorization': f'Bearer {osm_token}'})
+    def __init__(self, access_token: SecretStr):
+        self._http = get_http_client(
+            f'{OSM_API_URL}/api',
+            headers={'Authorization': f'Bearer {access_token.get_secret_value()}'},
+        )
 
     @retry_exponential
     async def get_changeset_max_size(self) -> int:

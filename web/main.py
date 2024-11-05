@@ -12,6 +12,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from httpx import AsyncClient
+from pydantic import BaseModel, SecretStr
 from sentry_sdk import capture_exception, start_span, trace
 from starlette.websockets import WebSocket
 
@@ -31,6 +32,9 @@ from osm_revert.main import main as revert_main
 if not OSM_CLIENT or not OSM_SECRET:
     raise AssertionError('Web interface requires OSM_CLIENT and OSM_SECRET to be set')
 
+_RE_CHANGESET_SEPARATOR = re.compile(r'(?:;|,|\s)+')
+_RE_REPEATED_WHITESPACE = re.compile(r'\s{2,}')
+
 http = AsyncClient(
     headers={'User-Agent': USER_AGENT},
     timeout=15,
@@ -49,16 +53,16 @@ active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
 @trace
 async def fetch_user_details(request: Request) -> dict | None:
     try:
-        access_token = request.cookies['access_token']
+        access_token = SecretStr(request.cookies['access_token'])
     except Exception:
         return None
 
     try:
-        return user_cache[access_token]
+        return user_cache[access_token.get_secret_value()]
     except Exception:
         r = await http.get(
             f'{OSM_API_URL}/api/0.6/user/details.json',
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={'Authorization': f'Bearer {access_token.get_secret_value()}'},
         )
         if not r.is_success:
             return None
@@ -67,7 +71,7 @@ async def fetch_user_details(request: Request) -> dict | None:
         if 'img' not in user:
             user['img'] = {'href': None}
 
-        user_cache[access_token] = user
+        user_cache[access_token.get_secret_value()] = user
         return user
 
 
@@ -133,12 +137,12 @@ async def websocket(ws: WebSocket):
     await ws.accept()
 
     try:
-        access_token = ws.cookies['access_token']
+        access_token = SecretStr(ws.cookies['access_token'])
     except Exception:
         await ws.close(1008)
         return
 
-    semaphore = active_ws[access_token]
+    semaphore = active_ws[access_token.get_secret_value()]
     if semaphore.locked():
         await ws.close(1008, 'Too many simultaneous connections for this user')
         return
@@ -146,7 +150,7 @@ async def websocket(ws: WebSocket):
     async with semaphore:
         try:
             while True:
-                args = await ws.receive_json()
+                args = MainArgs(**(await ws.receive_json()))
                 last_message = await main(ws, access_token, args)
                 await ws.send_json({'message': last_message, 'last': True})
         except WebSocketDisconnect:
@@ -156,39 +160,34 @@ async def websocket(ws: WebSocket):
             await ws.close(1011, str(e))
 
 
-@trace
-async def main(ws: WebSocket, access_token: str, args: dict) -> str:
-    for required_arg in (
-        'changesets',
-        'query_filter',
-        'comment',
-        'upload',
-        'discussion',
-        'discussion_target',
-        'fix_parents',
-    ):
-        if required_arg not in args:
-            raise ValueError(f'Missing argument: {required_arg!r}')
+class MainArgs(BaseModel):
+    changesets: str
+    query_filter: str
+    comment: str
+    upload: bool
+    discussion: str
+    discussion_target: str
+    fix_parents: bool
 
-    changesets = re.split(r'(?:;|,|\s)+', args['changesets'])
+
+@trace
+async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
+    changesets = _RE_CHANGESET_SEPARATOR.split(args.changesets)
     changesets = tuple(c.strip() for c in changesets if c.strip())
-    query_filter: str = args['query_filter'].strip()
-    comment: str = re.sub(r'\s{2,}', ' ', args['comment']).strip()
-    upload: bool = args['upload']
-    discussion: str = args['discussion']
-    discussion_target: str = args['discussion_target']
-    fix_parents: bool = args['fix_parents']
+    query_filter = args.query_filter.strip()
+    comment = _RE_REPEATED_WHITESPACE.sub(' ', args.comment).strip()
+    upload = args.upload
+    discussion = args.discussion.strip()
+    discussion_target = args.discussion_target
+    fix_parents = args.fix_parents
 
     if not changesets:
         return '❗️ No changesets were provided'
-
     if not all(c.isnumeric() for c in changesets):
         return '❗️ One or more changesets contain non-numeric characters'
-
     # upload specific requirements
     if upload and not comment:
         return '❗️ No comment was provided for the changes'
-
     if discussion_target not in ('all', 'newest', 'oldest'):
         return '❗️ Invalid discussion target'
 
@@ -207,7 +206,7 @@ async def main(ws: WebSocket, access_token: str, args: dict) -> str:
                 exit_code = await revert_main(
                     changeset_ids=changeset_ids,
                     comment=comment,
-                    osm_token=access_token,
+                    access_token=access_token,
                     discussion=discussion,
                     discussion_target=discussion_target,
                     print_osc=print_osc,
