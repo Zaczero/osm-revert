@@ -6,7 +6,7 @@ dependencies = [
   "gunicorn",
   "httpx[brotli,zstd]",
   "jinja2",
-  "sentry-sdk[fastapi,httpx]",
+  "sentry-sdk[fastapi,httpx,pure_eval]",
   "uvicorn[standard]",
   "xmltodict",
 ]

@@ -3,6 +3,8 @@ from urllib.parse import urlsplit
 
 import sentry_sdk
 from githead import githead
+from pydantic import SecretStr
+from sentry_sdk.integrations.pure_eval import PureEvalIntegration
 
 VERSION = 'git#' + githead()[:7]
 WEBSITE = os.getenv('OSM_REVERT_WEBSITE')
@@ -35,8 +37,8 @@ OSM_URL = os.getenv('OSM_URL', 'https://www.openstreetmap.org')
 OSM_API_URL = os.getenv('OSM_API_URL', 'https://api.openstreetmap.org')
 OVERPASS_URLS = os.getenv('OVERPASS_URLS', 'https://overpass.monicz.dev/api https://overpass-api.de/api').split()
 
-OSM_CLIENT = os.getenv('OSM_CLIENT')
-OSM_SECRET = os.getenv('OSM_SECRET')
+OSM_CLIENT = os.environ['OSM_CLIENT']
+OSM_SECRET = SecretStr(os.environ['OSM_SECRET'])
 OSM_SCOPES = 'read_prefs write_api'
 CONNECTION_LIMIT = int(os.getenv('CONNECTION_LIMIT', 2))
 
@@ -49,7 +51,6 @@ if SENTRY_DSN := os.getenv('SENTRY_DSN'):
         traces_sample_rate=0.5,
         trace_propagation_targets=None,
         profiles_sample_rate=0.5,
-        _experiments={
-            'continuous_profiling_auto_start': True,
-        },
+        integrations=(PureEvalIntegration(),),
+        _experiments={'continuous_profiling_auto_start': True},
     )

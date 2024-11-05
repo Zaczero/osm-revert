@@ -29,9 +29,6 @@ from osm_revert.config import (
 from osm_revert.context_logger import context_logger
 from osm_revert.main import main as revert_main
 
-if not OSM_CLIENT or not OSM_SECRET:
-    raise AssertionError('Web interface requires OSM_CLIENT and OSM_SECRET to be set')
-
 _RE_CHANGESET_SEPARATOR = re.compile(r'(?:;|,|\s)+')
 _RE_REPEATED_WHITESPACE = re.compile(r'\s{2,}')
 
@@ -111,7 +108,7 @@ async def callback(request: Request, code: Annotated[str, Query()], state: Annot
         f'{OSM_URL}/oauth2/token',
         data={
             'client_id': OSM_CLIENT,
-            'client_secret': OSM_SECRET,
+            'client_secret': OSM_SECRET.get_secret_value(),
             'redirect_uri': str(request.url_for('callback')),
             'grant_type': 'authorization_code',
             'code': code,
