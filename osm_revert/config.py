@@ -35,7 +35,7 @@ CHANGESETS_LIMIT_MODERATOR_REVERT = int(os.getenv('CHANGESETS_LIMIT_MODERATOR_RE
 
 OSM_URL = os.getenv('OSM_URL', 'https://www.openstreetmap.org')
 OSM_API_URL = os.getenv('OSM_API_URL', 'https://api.openstreetmap.org')
-OVERPASS_URLS = os.getenv('OVERPASS_URLS', 'https://overpass.monicz.dev/api https://overpass-api.de/api').split()
+OVERPASS_URLS = os.getenv('OVERPASS_URLS', 'https://overpass-api.de/api').split()
 
 OSM_CLIENT = os.environ['OSM_CLIENT']
 OSM_SECRET = SecretStr(os.environ['OSM_SECRET'])
