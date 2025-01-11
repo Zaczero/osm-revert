@@ -1,5 +1,7 @@
 import asyncio
+import os
 import random
+import ssl
 import time
 from collections.abc import Iterable
 from functools import wraps
@@ -8,6 +10,20 @@ from httpx import AsyncClient
 
 from osm_revert.config import USER_AGENT
 from osm_revert.context_logger import context_print
+
+_SSL_CONTEXT = ssl.create_default_context(cafile=os.environ['SSL_CERT_FILE'])
+
+
+def get_http_client(base_url: str, *, headers: dict | None = None) -> AsyncClient:
+    if headers is None:
+        headers = {}
+    return AsyncClient(
+        base_url=base_url,
+        follow_redirects=True,
+        timeout=30,
+        headers={'User-Agent': USER_AGENT, **headers},
+        verify=_SSL_CONTEXT,
+    )
 
 
 def retry_exponential(func):
@@ -38,17 +54,6 @@ def ensure_iterable(item) -> list | tuple:
     if isinstance(item, list | tuple):
         return item
     return (item,)
-
-
-def get_http_client(base_url: str = '', *, headers: dict | None = None) -> AsyncClient:
-    if headers is None:
-        headers = {}
-    return AsyncClient(
-        base_url=base_url,
-        headers={'User-Agent': USER_AGENT, **headers},
-        timeout=30,
-        follow_redirects=True,
-    )
 
 
 def is_osm_moderator(roles: Iterable[str]) -> bool:

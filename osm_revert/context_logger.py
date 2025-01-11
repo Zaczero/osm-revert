@@ -7,7 +7,7 @@ _log_queue: ContextVar[Queue[str]] = ContextVar('log_queue')
 
 @contextmanager
 def context_logger():
-    queue = Queue()
+    queue: Queue[str] = Queue()
     token = _log_queue.set(queue)
     try:
         yield queue

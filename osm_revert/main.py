@@ -7,6 +7,7 @@ from functools import wraps
 import uvloop
 import xmltodict
 from pydantic import SecretStr
+from sentry_sdk import trace
 
 from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, OSM_URL, WEBSITE
 from osm_revert.context_logger import context_print
@@ -17,6 +18,7 @@ from osm_revert.overpass import Overpass
 from osm_revert.utils import is_osm_moderator
 
 
+@trace
 def merge_and_sort_diffs(diffs: Sequence[dict[str, list[DiffEntry]]]) -> dict[str, list[DiffEntry]]:
     if not diffs:
         return {}
@@ -79,6 +81,7 @@ def main_timer(func):
 # TODO: slow but very accurate revert (download full history of future edits); overpass-api: timeline
 # TODO: dataclasses
 @main_timer
+@trace
 async def main(
     changeset_ids: Sequence[int],
     comment: str,

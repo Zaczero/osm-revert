@@ -1,6 +1,8 @@
 from collections.abc import Collection, Sequence
 from typing import cast
 
+from sentry_sdk import trace
+
 from osm_revert.context_logger import context_print
 from osm_revert.diff_match_patch import diff_match_patch
 
@@ -12,6 +14,7 @@ def dmp_retry_reverse(old: Collection[str], new: Sequence[str], current: Collect
     return dmp(old, new[::-1], current)
 
 
+@trace
 def dmp(old: Collection[str], new: Collection[str], current: Collection[str]) -> list[str] | None:
     old_lines = '\n'.join(old) + '\n'
     new_lines = '\n'.join(new) + '\n'

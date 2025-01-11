@@ -8,6 +8,7 @@ from itertools import chain, pairwise
 
 import xmltodict
 from httpx import AsyncClient
+from sentry_sdk import trace
 
 from osm_revert.config import OVERPASS_URLS, REVERT_TO_DATE
 from osm_revert.context_logger import context_print
@@ -28,11 +29,9 @@ def parse_timestamp(timestamp: str) -> int:
 
 def get_bbox(changeset: dict) -> str:
     e = changeset['osm']['changeset']
-
     # some changesets don't have a bbox
     if '@min_lat' not in e:
         return ''
-
     min_lat, max_lat = e['@min_lat'], e['@max_lat']
     min_lon, max_lon = e['@min_lon'], e['@max_lon']
     return f'[bbox:{min_lat},{min_lon},{max_lat},{max_lon}]'
@@ -77,13 +76,13 @@ def get_element_types_from_selector(selector: str) -> Sequence[str]:
     return result
 
 
-def build_query_filtered(element_ids: dict, query_filter: str) -> str:
-    element_ids = deepcopy(element_ids)
-
+@trace
+def build_query_filtered(element_ids: dict[str, list[str]], query_filter: str) -> str:
     # ensure valid query if no ids are present
-    for invert_ids in element_ids.values():
+    element_ids = element_ids.copy()
+    for type_, invert_ids in element_ids.items():
         if not invert_ids:
-            invert_ids.append('-1')
+            element_ids[type_] = ['-1']
 
     implicit_query_way_children = bool(query_filter)
 
@@ -152,6 +151,7 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
 
 
 @retry_exponential
+@trace
 async def fetch_overpass(http: AsyncClient, data: str, *, check_bad_request: bool = False) -> dict | str:
     r = await http.post('/interpreter', data={'data': data}, timeout=300)
 
@@ -173,6 +173,7 @@ async def fetch_overpass(http: AsyncClient, data: str, *, check_bad_request: boo
     return xmltodict.parse(r.text)
 
 
+@trace
 def get_current_map(actions: Iterable[dict]) -> dict[str, dict[str, dict]]:
     result = {'node': {}, 'way': {}, 'relation': {}}
     for action in actions:
@@ -237,6 +238,7 @@ class Overpass:
 
         return None
 
+    @trace
     async def _get_changeset_elements_history(
         self,
         http: AsyncClient,
@@ -359,6 +361,7 @@ class Overpass:
 
         return result
 
+    @trace
     async def update_parents(self, invert: dict[str, list], fix_parents: bool) -> int:
         internal_ids = {
             'node': {e['@id'] for e in invert['node']},

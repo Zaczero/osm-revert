@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from httpx import AsyncClient
 from pydantic import BaseModel, SecretStr
-from sentry_sdk import capture_exception, start_span, trace
+from sentry_sdk import capture_exception, start_transaction, trace
 from starlette.websockets import WebSocket
 
 from osm_revert.config import (
@@ -47,29 +47,27 @@ user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
 active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
 
 
-@trace
 async def fetch_user_details(request: Request) -> dict | None:
-    try:
-        access_token = SecretStr(request.cookies['access_token'])
-    except Exception:
+    if 'access_token' not in request.cookies:
         return None
+    access_token = SecretStr(request.cookies['access_token'])
+    cached = user_cache.get(access_token.get_secret_value())
+    if cached is not None:
+        return cached
 
-    try:
-        return user_cache[access_token.get_secret_value()]
-    except Exception:
-        r = await http.get(
-            f'{OSM_API_URL}/api/0.6/user/details.json',
-            headers={'Authorization': f'Bearer {access_token.get_secret_value()}'},
-        )
-        if not r.is_success:
-            return None
-        user = r.json()
+    r = await http.get(
+        f'{OSM_API_URL}/api/0.6/user/details.json',
+        headers={'Authorization': f'Bearer {access_token.get_secret_value()}'},
+    )
+    if not r.is_success:
+        return None
+    user = r.json()
 
-        if 'img' not in user:
-            user['img'] = {'href': None}
+    if 'img' not in user:
+        user['img'] = {'href': None}
 
-        user_cache[access_token.get_secret_value()] = user
-        return user
+    user_cache[access_token.get_secret_value()] = user
+    return user
 
 
 @app.get('/')
@@ -135,7 +133,7 @@ async def websocket(ws: WebSocket):
 
     try:
         access_token = SecretStr(ws.cookies['access_token'])
-    except Exception:
+    except KeyError:
         await ws.close(1008)
         return
 
@@ -148,8 +146,9 @@ async def websocket(ws: WebSocket):
         try:
             while True:
                 args = MainArgs(**(await ws.receive_json()))
-                last_message = await main(ws, access_token, args)
-                await ws.send_json({'message': last_message, 'last': True})
+                with start_transaction(op='websocket.server', name='revert'):
+                    last_message = await main(ws, access_token, args)
+                    await ws.send_json({'message': last_message, 'last': True})
         except WebSocketDisconnect:
             pass
         except Exception as e:
@@ -191,13 +190,13 @@ async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
     changeset_ids = tuple(map(int, changesets))
     print_osc = not upload
 
-    async def queue_processor(queue: Queue):
+    async def queue_processor(queue: Queue[str]):
         with suppress(QueueShutDown):
             while True:
                 await ws.send_json({'message': await queue.get()})
 
     async with TaskGroup() as tg:
-        with context_logger() as queue, start_span(op='revert', name='revert'):
+        with context_logger() as queue:
             tg.create_task(queue_processor(queue))
             async with timeout(1800):  # 30 minutes
                 exit_code = await revert_main(

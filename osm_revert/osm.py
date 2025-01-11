@@ -3,12 +3,14 @@ from typing import Any
 
 import xmltodict
 from pydantic import SecretStr
+from sentry_sdk import trace
 
 from osm_revert.config import CREATED_BY, NO_TAG_PREFIX, OSM_API_URL, TAG_MAX_LENGTH, TAG_PREFIX
 from osm_revert.context_logger import context_print
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 
+@trace
 def sort_relations_for_osm_change(relations: Collection[dict]) -> list[dict]:
     change_ids = {rel['@id'] for rel in relations}
 
@@ -62,6 +64,7 @@ def sort_relations_for_osm_change(relations: Collection[dict]) -> list[dict]:
     return result
 
 
+@trace
 def build_osm_change(diff: dict, changeset_id: str | None) -> dict:
     result = {
         'osmChange': {
@@ -127,6 +130,7 @@ class OsmApi:
         return r.json()['user']
 
     @retry_exponential
+    @trace
     async def get_changeset(self, changeset_id: int) -> dict:
         info_resp = await self._http.get(f'/0.6/changeset/{changeset_id}')
         info_resp.raise_for_status()
@@ -158,6 +162,7 @@ class OsmApi:
 
         return info | diff
 
+    @trace
     async def upload_diff(self, diff: dict, comment: str, extra_tags: dict[str, Any]) -> str | None:
         if 'comment' in extra_tags:
             raise ValueError('comment is a reserved tag')
