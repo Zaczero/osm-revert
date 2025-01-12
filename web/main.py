@@ -3,7 +3,9 @@ import re
 from asyncio import Queue, QueueShutDown, Semaphore, TaskGroup, timeout
 from collections import defaultdict
 from contextlib import suppress
-from typing import Annotated
+from functools import lru_cache
+from hashlib import sha256
+from typing import Annotated, NewType
 from urllib.parse import urlencode
 
 from cachetools import TTLCache
@@ -29,54 +31,33 @@ from osm_revert.config import (
 from osm_revert.context_logger import context_logger
 from osm_revert.main import main as revert_main
 
+HashedAccessToken = NewType('HashedAccessToken', bytes)
+
 _RE_CHANGESET_SEPARATOR = re.compile(r'(?:;|,|\s)+')
 _RE_REPEATED_WHITESPACE = re.compile(r'\s{2,}')
 
-http = AsyncClient(
+_HTTP = AsyncClient(
     headers={'User-Agent': USER_AGENT},
     timeout=15,
     follow_redirects=True,
 )
 
+_SESSION_MAX_AGE = 31536000  # 1 year
+_TEMPLATES = Jinja2Templates(directory='web/templates', auto_reload=TEST_ENV)
+_USER_CACHE: TTLCache[HashedAccessToken, dict] = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
+_ACTIVE_WS: defaultdict[HashedAccessToken, Semaphore] = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
+
 app = FastAPI()
 app.mount('/static', StaticFiles(directory='web/static', html=True), name='static')
-
-cookie_max_age = 31536000  # 1 year
-templates = Jinja2Templates(directory='web/templates', auto_reload=TEST_ENV)
-user_cache = TTLCache(maxsize=1024, ttl=7200)  # 2 hours
-active_ws = defaultdict(lambda: Semaphore(CONNECTION_LIMIT))
-
-
-async def fetch_user_details(request: Request) -> dict | None:
-    if 'access_token' not in request.cookies:
-        return None
-    access_token = SecretStr(request.cookies['access_token'])
-    cached = user_cache.get(access_token.get_secret_value())
-    if cached is not None:
-        return cached
-
-    r = await http.get(
-        f'{OSM_API_URL}/api/0.6/user/details.json',
-        headers={'Authorization': f'Bearer {access_token.get_secret_value()}'},
-    )
-    if not r.is_success:
-        return None
-    user = r.json()
-
-    if 'img' not in user:
-        user['img'] = {'href': None}
-
-    user_cache[access_token.get_secret_value()] = user
-    return user
 
 
 @app.get('/')
 @app.post('/')
 async def index(request: Request):
-    if user := await fetch_user_details(request):
-        return templates.TemplateResponse(request, 'authorized.jinja2', {'user': user})
+    if user := await _fetch_user_details(request):
+        return _TEMPLATES.TemplateResponse(request, 'authorized.jinja2', {'user': user})
     else:
-        return templates.TemplateResponse(request, 'index.jinja2')
+        return _TEMPLATES.TemplateResponse(request, 'index.jinja2')
 
 
 @app.post('/login')
@@ -102,7 +83,7 @@ async def callback(request: Request, code: Annotated[str, Query()], state: Annot
     if cookie_state != state:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Invalid OAuth state')
 
-    r = await http.post(
+    r = await _HTTP.post(
         f'{OSM_URL}/oauth2/token',
         data={
             'client_id': OSM_CLIENT,
@@ -116,7 +97,7 @@ async def callback(request: Request, code: Annotated[str, Query()], state: Annot
     access_token = r.json()['access_token']
 
     response = RedirectResponse('/', status.HTTP_302_FOUND)
-    response.set_cookie('access_token', access_token, cookie_max_age, secure=not TEST_ENV, httponly=True)
+    response.set_cookie('access_token', access_token, _SESSION_MAX_AGE, secure=not TEST_ENV, httponly=True)
     return response
 
 
@@ -137,7 +118,8 @@ async def websocket(ws: WebSocket):
         await ws.close(1008)
         return
 
-    semaphore = active_ws[access_token.get_secret_value()]
+    hashed_access_token = _hash_access_token(access_token)
+    semaphore = _ACTIVE_WS[hashed_access_token]
     if semaphore.locked():
         await ws.close(1008, 'Too many simultaneous connections for this user')
         return
@@ -210,3 +192,32 @@ async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
                     fix_parents=fix_parents,
                 )
     return f'Exit code: {exit_code}'
+
+
+async def _fetch_user_details(request: Request) -> dict | None:
+    if 'access_token' not in request.cookies:
+        return None
+    access_token = SecretStr(request.cookies['access_token'])
+    hashed_access_token = _hash_access_token(access_token)
+    cached = _USER_CACHE.get(hashed_access_token)
+    if cached is not None:
+        return cached
+
+    r = await _HTTP.get(
+        f'{OSM_API_URL}/api/0.6/user/details.json',
+        headers={'Authorization': f'Bearer {access_token.get_secret_value()}'},
+    )
+    if not r.is_success:
+        return None
+    user = r.json()
+
+    if 'img' not in user:
+        user['img'] = {'href': None}
+
+    _USER_CACHE[hashed_access_token] = user
+    return user
+
+
+@lru_cache(maxsize=128)
+def _hash_access_token(access_token: SecretStr) -> HashedAccessToken:
+    return HashedAccessToken(sha256(access_token.get_secret_value().encode()).digest())
