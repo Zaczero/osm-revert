@@ -118,8 +118,7 @@ async def websocket(ws: WebSocket):
         await ws.close(1008)
         return
 
-    hashed_access_token = _hash_access_token(access_token)
-    semaphore = _ACTIVE_WS[hashed_access_token]
+    semaphore = _ACTIVE_WS[_hash_access_token(access_token)]
     if semaphore.locked():
         await ws.close(1008, 'Too many simultaneous connections for this user')
         return
@@ -131,9 +130,9 @@ async def websocket(ws: WebSocket):
                 with start_transaction(op='websocket.server', name='revert'):
                     last_message = await main(ws, access_token, args)
                     await ws.send_json({'message': last_message, 'last': True})
-        except WebSocketDisconnect:
+        except* WebSocketDisconnect:
             pass
-        except Exception as e:
+        except* Exception as e:
             capture_exception(e)
             await ws.close(1011, str(e))
 
