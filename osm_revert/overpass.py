@@ -115,7 +115,7 @@ def build_query_filtered(element_ids: dict[str, list[str]], query_filter: str) -
 
         new_ids = set(chain.from_iterable(element_ids[et] for et in get_element_types_from_selector(selector)))
         new_ids = new_ids.difference(invert_ids)
-        joined_new_ids = ','.join(new_ids)
+        joined_new_ids = ','.join(new_ids) if new_ids else '-1'
 
         query_filter = query_filter[:start] + f'(id:{joined_new_ids})' + query_filter[end:]
 
