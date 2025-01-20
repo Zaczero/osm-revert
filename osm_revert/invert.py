@@ -110,7 +110,6 @@ class Inverter:
 
         return result
 
-    @trace
     def _invert_element(self, element_type: str, element_id: str, old: dict, new: dict, current: dict) -> None:
         # create
         if (not old or old['@visible'] == 'false') and new['@visible'] == 'true':
@@ -167,7 +166,6 @@ class Inverter:
         else:
             raise Exception(f'Invalid state: {old!r}, {new!r}')
 
-    @trace
     def _invert_tags(self, old: dict, new: dict, current: dict) -> None:
         old_tags = {d['@k']: d['@v'] for d in ensure_iterable(old.get('tag', ()))}
         new_tags = {d['@k']: d['@v'] for d in ensure_iterable(new.get('tag', ()))}
@@ -245,7 +243,6 @@ class Inverter:
         current['@lat'] = old['@lat']
         current['@lon'] = old['@lon']
 
-    @trace
     def _invert_way_nodes(self, old: dict, new: dict, current: dict) -> None:
         old_nodes = tuple(json.dumps(n) for n in ensure_iterable(old.get('nd', ())))
         new_nodes = tuple(json.dumps(n) for n in ensure_iterable(new.get('nd', ())))
@@ -285,7 +282,6 @@ class Inverter:
             self.statistics['dmp:fail:way:id'].append(new['@id'])
             self.warnings['way'].append(new['@id'])
 
-    @trace
     def _invert_relation_members(self, old: dict, new: dict, current: dict) -> None:
         old_members = tuple(json.dumps(m) for m in ensure_iterable(old.get('member', ())))
         new_members = tuple(json.dumps(m) for m in ensure_iterable(new.get('member', ())))
