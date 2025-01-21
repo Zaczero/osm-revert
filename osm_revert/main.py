@@ -7,7 +7,7 @@ from functools import wraps
 import uvloop
 import xmltodict
 from pydantic import SecretStr
-from sentry_sdk import trace
+from sentry_sdk import capture_exception, trace
 
 from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, OSM_URL, WEBSITE
 from osm_revert.context_logger import context_print
@@ -60,7 +60,8 @@ def main_timer(func):
 
         try:
             exit_code = await func(*args, **kwargs)
-        except Exception:
+        except Exception as e:
+            capture_exception(e)
             context_print(traceback.format_exc())
             exit_code = -2
 
