@@ -153,7 +153,7 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
 @retry_exponential
 @trace
 async def fetch_overpass(http: AsyncClient, data: str, *, check_bad_request: bool = False) -> dict | str:
-    r = await http.post('/interpreter', data={'data': data}, timeout=300)
+    r = await http.post('', data={'data': data}, timeout=300)
 
     if check_bad_request and r.status_code == 400:
         s = r.text.find('<body>')
