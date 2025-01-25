@@ -1,102 +1,132 @@
 {% extends '_base.jinja2' %}
 {% block body %}
 
-<div class="d-flex justify-content-between mb-2">
-    <h4 class="header mb-0">
-        <img src="/static/img/favicon/256.webp" height="24" alt="osm-revert logo">
-        osm-revert
-    </h4>
+    <div class="d-flex justify-content-between mb-2">
+        <h4 class="header mb-0">
+            <img src="/static/img/favicon/256.webp" height="24" alt="osm-revert logo">
+            osm-revert
+        </h4>
 
-    <div class="d-flex align-items-center">
-        {% if user.img.href %}
-        <img class="rounded" src="{{ user.img.href }}" width="32" height="32" alt="Profile picture">
-        {% endif %}
+        <div class="d-flex align-items-center">
+            {% if user.img.href %}
+                <img class="rounded" src="{{ user.img.href }}" width="32" height="32" alt="Profile picture">
+            {% endif %}
 
-        <h5 class="ms-2 mb-0">{{ user.display_name }}</h5>
+            <h5 class="ms-2 mb-0">{{ user.display_name }}</h5>
 
-        <form method="POST" action="/logout">
-            <input class="btn btn-sm btn-light ms-2" type="submit" value="Logout">
-        </form>
-    </div>
-</div>
-
-<label class="w-100">
-    <span class="required" title="This field is required">Changesets:</span>
-    <textarea id="changesets" class="form-control" rows="2" placeholder="118034381, 130000000, …"
-        spellcheck="false">{{ request.query_params.get('changesets', '') }}</textarea>
-</label>
-
-<label class="w-100">
-    <a href="https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL" target="_blank">Overpass QL</a>
-    filter (optional):
-    <div class="small text-secondary"><i>Reverts elements that match either old or new, or both.</i></div>
-    <textarea id="query-filter" class="form-control" rows="2"
-        placeholder="node[ford=yes]; way[!highway]; rel(id:7532,99517)"
-        spellcheck="false">{{ request.query_params.get('query-filter', '') }}</textarea>
-</label>
-
-<label class="w-100">
-    <span class="required" title="This field is required">Comment:</span>
-    <abbr title="The reverting changeset's comment">(?)</abbr>
-    <textarea id="comment" class="form-control" rows="2" placeholder="I revert it because…" maxlength="255"></textarea>
-    <div for="comment" class="char-counter"></div>
-</label>
-
-<label class="w-100">
-    <span class="required" title="This field is required">Auto-discussion:</span>
-    <abbr title="Comment on each of the reverted changesets">(?)</abbr>
-    <textarea id="discussion" class="form-control" rows="2" placeholder="I reverted this changeset because…"
-        maxlength="2000"></textarea>
-    <div for="discussion" class="char-counter"></div>
-</label>
-
-<div class="text-end small">
-    <div class="form-check form-check-inline">
-        <input class="form-check-input" id="dt-a" type="radio" name="discussion_target" value="all" checked>
-        <label class="form-check-label" for="dt-a">All changesets</label>
-    </div>
-    <div class="form-check form-check-inline">
-        <input class="form-check-input" id="dt-n" type="radio" name="discussion_target" value="newest">
-        <label class="form-check-label" for="dt-n">Newest only</label>
-    </div>
-    <div class="form-check form-check-inline">
-        <input class="form-check-input" id="dt-o" type="radio" name="discussion_target" value="oldest">
-        <label class="form-check-label" for="dt-o">Oldest only</label>
-    </div>
-</div>
-
-<div class="w-100 mb-2">
-    Resolve parent conflicts:
-    <abbr title="Parent conflicts occur when other changesets make dependencies on newly created elements">(?)</abbr>
-    <div class="small mt-1">
-        <div class="form-check form-check-inline">
-            <input class="form-check-input" id="fp-t" type="radio" name="fix_parents" value="True" checked>
-            <label class="form-check-label" for="fp-t">
-                Forcefully remove conflicting elements
-            </label>
-        </div>
-        <div class="form-check form-check-inline">
-            <input class="form-check-input" id="fp-f" type="radio" name="fix_parents" value="False">
-            <label class="form-check-label" for="fp-f">
-                Skip conflicting elements (assume they were fixed)
-            </label>
+            <form method="POST" action="/logout">
+                <input class="btn btn-sm btn-light ms-2" type="submit" value="Logout">
+            </form>
         </div>
     </div>
-</div>
 
-<div class="row g-2 mb-3">
-    <div class="col-md-6">
-        <input id="submit" class="btn btn-primary w-100 py-2" type="button" value="Connecting…" disabled>
+    <label class="w-100">
+        <span class="required" title="This field is required">Changesets:</span>
+        <textarea id="changesets" class="form-control" rows="2" placeholder="118034381, 130000000, …"
+                  spellcheck="false">{{ request.query_params.get('changesets', '') }}</textarea>
+    </label>
+
+    <label class="w-100">
+        <a href="https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL" target="_blank">Overpass QL</a>
+        filter (optional):
+        <div class="small text-secondary"><i>Reverts elements that match either old or new, or both.</i></div>
+        <textarea id="query-filter" class="form-control" rows="2"
+                  placeholder="node[ford=yes]; way[!highway]; rel(id:7532,99517)"
+                  spellcheck="false">{{ request.query_params.get('query-filter', '') }}</textarea>
+    </label>
+
+    <label class="w-100">
+        <span class="required" title="This field is required">Comment:</span>
+        <abbr title="The reverting changeset's comment">(?)</abbr>
+        <textarea id="comment" class="form-control" rows="2" placeholder="I revert it because…"
+                  maxlength="255"></textarea>
+        <div for="comment" class="char-counter"></div>
+    </label>
+
+    <label class="w-100">
+        <span class="required" title="This field is required">Auto-discussion:</span>
+        <abbr title="Comment on each of the reverted changesets">(?)</abbr>
+        <textarea id="discussion" class="form-control" rows="2" placeholder="I reverted this changeset because…"
+                  maxlength="2000"></textarea>
+        <div for="discussion" class="char-counter"></div>
+    </label>
+
+    <div class="text-end small">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="dt-a" type="radio" name="discussion_target" value="all" checked>
+            <label class="form-check-label" for="dt-a">All changesets</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="dt-n" type="radio" name="discussion_target" value="newest">
+            <label class="form-check-label" for="dt-n">Newest only</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="dt-o" type="radio" name="discussion_target" value="oldest">
+            <label class="form-check-label" for="dt-o">Oldest only</label>
+        </div>
     </div>
-    <div class="col-md-6">
-        <input id="submit-osc" class="btn btn-secondary w-100 py-2" type="button" value="Connecting…" disabled>
+
+    <div class="w-100 mb-2">
+        Resolve parent conflicts:
+        <abbr title="Parent conflicts occur when other changesets make dependencies on newly created elements">(?)</abbr>
+        <div class="small mt-1">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" id="fp-t" type="radio" name="fix_parents" value="True" checked>
+                <label class="form-check-label" for="fp-t">
+                    Forcefully remove conflicting elements
+                </label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" id="fp-f" type="radio" name="fix_parents" value="False">
+                <label class="form-check-label" for="fp-f">
+                    Skip conflicting elements (assume they were fixed)
+                </label>
+            </div>
+        </div>
     </div>
-</div>
 
-<label class="w-100">
-    <textarea id="log" class="form-control font-monospace" rows="12" autocomplete="off" readonly></textarea>
-    <div class="text-center small text-secondary">REVERT LOG</div>
-</label>
+    <div class="row g-2 mb-3">
+        <div class="col-md-6">
+            <input id="submit" class="btn btn-primary w-100 py-2" type="button" value="Connecting…" disabled>
+        </div>
+        <div class="col-md-6">
+            <input id="submit-osc" class="btn btn-secondary w-100 py-2" type="button" value="Connecting…" disabled>
+        </div>
+    </div>
 
-<script src="/static/js/authorized.js"></script>
+    <label class="w-100">
+        <textarea id="log" class="form-control font-monospace" rows="12" autocomplete="off" readonly></textarea>
+        <div class="text-center small text-secondary">REVERT LOG</div>
+    </label>
+
+    <div id="first-time-modal" class="modal" tabindex="-1" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Advanced tool warning</h5>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        <img src="/static/img/favicon/256.webp" height="16" alt="osm-revert logo">
+                        <b>osm-revert</b> is an advanced tool for reverting OpenStreetMap changes.
+                        With great power comes great responsibility.
+                    </p>
+                    <p>Before proceeding, remember:</p>
+                    <ol>
+                        <li>You are responsible for any changes made using this tool.</li>
+                        <li>Be respectful to other mappers and their work.</li>
+                        <li>New to OpenStreetMap? Begin with manual reverts.</li>
+                    </ol>
+                    <p class="form-text my-0">
+                        Crabs 🦀 have been known to pinch those who revert carelessly...
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary">I understand</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/authorized.js"></script>
 {% endblock %}

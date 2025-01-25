@@ -1,3 +1,19 @@
+if (!localStorage.getItem('first-time-modal-acknowledged')) {
+    console.log('Showing first-time-modal')
+    const backdrop = document.createElement('div')
+    backdrop.classList.add('modal-backdrop', 'show')
+    document.body.appendChild(backdrop)
+
+    const modal = document.getElementById('first-time-modal')
+    modal.classList.add('d-block')
+    modal.querySelector('button').addEventListener('click', () => {
+        console.debug('Acknowledging first-time-modal')
+        localStorage.setItem('first-time-modal-acknowledged', 'true')
+        backdrop.remove()
+        modal.remove()
+    }, {once: true})
+}
+
 const form = document.getElementById('form')
 const changesets = document.getElementById('changesets')
 const query_filter = document.getElementById('query-filter')
@@ -35,27 +51,24 @@ ws.onopen = () => {
 ws.onmessage = e => {
     const obj = JSON.parse(e.data)
 
-    if (obj.message === "<osc>") {
+    if (obj.message === '<osc>') {
         wsDownloadingOsc = true
         wsOsc = []
-    }
-    else if (obj.message === "</osc>") {
+    } else if (obj.message === '</osc>') {
         const fileName = 'revert_' + new Date().toISOString().replace(/:/g, '_') + '.osc'
         const osc = wsOsc.join('\n')
 
         const a = document.createElement('a')
-        const file = new Blob([osc], { type: 'text/xml; charset=utf-8' })
+        const file = new Blob([osc], {type: 'text/xml; charset=utf-8'})
         a.href = URL.createObjectURL(file)
         a.download = fileName
         a.click()
 
         wsDownloadingOsc = false
         wsOsc = []
-    }
-    else if (wsDownloadingOsc) {
+    } else if (wsDownloadingOsc) {
         wsOsc.push(obj.message)
-    }
-    else {
+    } else {
         log.value += obj.message + '\n'
 
         if (isAutoScrolling && log.scrollHeight > log.clientHeight)
@@ -63,7 +76,7 @@ ws.onmessage = e => {
     }
 
     if (obj.last === true) {
-        if (clearFields && obj.message === "Exit code: 0") {
+        if (clearFields && obj.message === 'Exit code: 0') {
             changesets.value = ''
         }
 
