@@ -162,10 +162,11 @@ async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
         return '❗️ No changesets were provided'
     if not all(c.isnumeric() for c in changesets):
         return '❗️ One or more changesets contain non-numeric characters'
-    # upload specific requirements
     if upload and not comment:
         return '❗️ No comment was provided for the changes'
-    if discussion_target not in ('all', 'newest', 'oldest'):
+    if upload and not discussion:
+        return '❗️ No discussion was provided for the changes'
+    if discussion_target not in {'all', 'newest', 'oldest'}:
         return '❗️ Invalid discussion target'
 
     changeset_ids = tuple(map(int, changesets))
