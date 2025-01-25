@@ -1,17 +1,22 @@
+const modal = document.getElementById('first-time-modal')
 if (!localStorage.getItem('first-time-modal-acknowledged')) {
     console.log('Showing first-time-modal')
     const backdrop = document.createElement('div')
     backdrop.classList.add('modal-backdrop', 'show')
     document.body.appendChild(backdrop)
 
-    const modal = document.getElementById('first-time-modal')
     modal.classList.add('d-block')
-    modal.querySelector('button').addEventListener('click', () => {
+    const acceptButton = modal.querySelector('button')
+    acceptButton.addEventListener('click', () => {
         console.debug('Acknowledging first-time-modal')
         localStorage.setItem('first-time-modal-acknowledged', 'true')
         backdrop.remove()
         modal.remove()
     }, {once: true})
+    acceptButton.focus()
+} else {
+    console.log('Not showing first-time-modal')
+    modal.remove()
 }
 
 const form = document.getElementById('form')
