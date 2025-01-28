@@ -164,8 +164,6 @@ async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
         return '❗️ One or more changesets contain non-numeric characters'
     if upload and not comment:
         return '❗️ No comment was provided for the changes'
-    if upload and not discussion:
-        return '❗️ No discussion was provided for the changes'
     if discussion_target not in {'all', 'newest', 'oldest'}:
         return '❗️ Invalid discussion target'
 
