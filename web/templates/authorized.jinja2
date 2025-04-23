@@ -1,5 +1,7 @@
 {% extends '_base.jinja2' %}
 {% block body %}
+    {% set changesets = request.query_params.get('changesets', '') %}
+    {% set query_filter = request.query_params.get('query-filter', '') %}
 
     <div class="d-flex justify-content-between mb-2">
         <h4 class="header mb-0">
@@ -23,8 +25,8 @@
     <label class="w-100">
         <span class="required" title="This field is required">Changesets:</span>
         <textarea id="changesets" class="form-control" rows="2" placeholder="118034381, 130000000, …"
-                  spellcheck="false" {% if request.query_params.get('changesets', '') == '' %}autofocus{% endif %}
-        >{{ request.query_params.get('changesets', '') }}</textarea>
+                  spellcheck="false" {% if not changesets %}autofocus{% endif %}
+        >{{ changesets }}</textarea>
     </label>
 
     <label class="w-100">
@@ -33,15 +35,15 @@
         <div class="small text-secondary"><i>Reverts elements that match either old or new, or both.</i></div>
         <textarea id="query-filter" class="form-control" rows="2"
                   placeholder="node[ford=yes]; way[!highway]; rel(id:7532,99517)"
-                  spellcheck="false" {% if request.query_params.get('changesets', '') != '' and request.query_params.get('query-filter', '') == '' %}autofocus{% endif %}
-        >{{ request.query_params.get('query-filter', '') }}</textarea>
+                  spellcheck="false" {% if changesets and not query_filter %}autofocus{% endif %}
+        >{{ query_filter }}</textarea>
     </label>
 
     <label class="w-100">
         <span class="required" title="This field is required">Comment:</span>
         <abbr title="The reverting changeset's comment">(?)</abbr>
         <textarea id="comment" class="form-control" rows="2" placeholder="I revert it because…"
-                  maxlength="255" {% if request.query_params.get('changesets', '') != '' and request.query_params.get('query-filter', '') != '' %}autofocus{% endif %}
+                  maxlength="255" {% if changesets and query_filter %}autofocus{% endif %}
         ></textarea>
         <div for="comment" class="char-counter"></div>
     </label>
