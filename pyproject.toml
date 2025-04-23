@@ -15,25 +15,17 @@ requires-python = "~=3.13"
 version = "0.0.0"
 
 [tool.uv]
-package = false
-python-downloads = "never"
+package           = false
+python-downloads  = "never"
 python-preference = "only-system"
 
 [tool.setuptools]
 packages = ["osm_revert", "web"]
 
 [tool.ruff]
-# Exclude a variety of commonly ignored directories.
-exclude = [
-  ".direnv",
-  ".git",
-  ".ruff_cache",
-  ".venv",
-  "osm_revert/diff_match_patch.py",
-]
-
-indent-width = 4
-line-length = 120
+extend-exclude = ["osm_revert/diff_match_patch.py"]
+indent-width   = 4
+line-length    = 120
 target-version = "py313"
 
 [tool.ruff.lint]
@@ -79,18 +71,13 @@ select = [
   "W6",
   "YTT",   # flake8-2020
 ]
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
 unfixable = []
 
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
 [tool.ruff.format]
-indent-style = "space"
-line-ending = "lf"
-quote-style = "single"
+indent-style              = "space"
+line-ending               = "lf"
+quote-style               = "single"
 skip-magic-trailing-comma = false
 
 [tool.ruff.lint.flake8-builtins]
@@ -98,7 +85,7 @@ builtins-ignorelist = ["id", "open", "type"]
 
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
-inline-quotes = "single"
+inline-quotes    = "single"
 multiline-quotes = "double"
 
 [tool.ruff.lint.pylint]
