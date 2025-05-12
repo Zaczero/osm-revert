@@ -1,5 +1,6 @@
 import json
 from collections import Counter
+from collections.abc import Iterable
 from copy import deepcopy
 from typing import TypedDict
 
@@ -29,7 +30,7 @@ StatisticsDict = TypedDict(
 
 
 class Inverter:
-    __slots__ = ('_only_tags', '_current_map', '_version_map', '_run_counter', 'statistics', 'warnings')
+    __slots__ = ('_current_map', '_only_tags', '_run_counter', '_version_map', 'statistics', 'warnings')
 
     def __init__(self, only_tags: frozenset[str]) -> None:
         self._only_tags = only_tags
@@ -81,9 +82,7 @@ class Inverter:
                 if last_current is not None:
                     current = deepcopy(last_current)
 
-                _set_visible_original(old, current)
-                _set_visible_original(new, current)
-                _set_visible_original(current, current)
+                _set_visible_original((current, new, old), current)
 
                 self._invert_element(element_type, element_id, old, new, current)
 
@@ -322,6 +321,9 @@ class Inverter:
             self.warnings['relation'].append(new['@id'])
 
 
-def _set_visible_original(target: dict | None, current: dict):
-    if target and '@visible:original' not in target:
-        target['@visible:original'] = current['@visible']
+def _set_visible_original(targets: Iterable[dict | None], current: dict) -> None:
+    visible_original = current.get('@visible:original', current['@visible'])
+
+    for target in targets:
+        if target is not None and '@visible:original' not in target:
+            target['@visible:original'] = visible_original
