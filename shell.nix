@@ -2,7 +2,7 @@
 
 let
   # Update packages with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/b3582c75c7f21ce0b429898980eddbbf05c68e55.tar.gz") { };
+  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/59138c7667b7970d205d6a05a8bfa2d78caa3643.tar.gz") { };
 
   pythonLibs = with pkgs; [
     stdenv.cc.cc.lib
@@ -53,10 +53,12 @@ let
   ];
 
   shell' = with pkgs; ''
-    export SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
+    export TZ=UTC
+    export NIX_ENFORCE_NO_NATIVE=0
+    export NIX_SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
+    export SSL_CERT_FILE=$NIX_SSL_CERT_FILE
     export PYTHONNOUSERSITE=1
     export PYTHONPATH=""
-    export TZ=UTC
 
     current_python=$(readlink -e .venv/bin/python || echo "")
     current_python=''${current_python%/bin/*}
