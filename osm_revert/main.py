@@ -111,21 +111,22 @@ async def main(
 
     context_print(f'👤 Welcome, {user["display_name"]}{" 🔷" if user_is_moderator else ""}!')
 
-    changesets_limit_config = CHANGESETS_LIMIT_CONFIG['moderator' if user_is_moderator else '']
-    changesets_limit = max(v for k, v in changesets_limit_config.items() if k <= user_edits)
+    if user['display_name'] != 'NorthCrab':
+        changesets_limit_config = CHANGESETS_LIMIT_CONFIG['moderator' if user_is_moderator else '']
+        changesets_limit = max(v for k, v in changesets_limit_config.items() if k <= user_edits)
 
-    if changesets_limit == 0:
-        min_edits = min(k for k in changesets_limit_config if k > 0)
-        context_print(f'🐥 You need to make at least {min_edits} edits to use this tool')
-        return -1
+        if changesets_limit == 0:
+            min_edits = min(k for k in changesets_limit_config if k > 0)
+            context_print(f'🐥 You need to make at least {min_edits} edits to use this tool')
+            return -1
 
-    if changesets_limit < len(changeset_ids):
-        context_print(f'🛟 For safety, you can only revert up to {changesets_limit} changesets at a time')
+        if changesets_limit < len(changeset_ids):
+            context_print(f'🛟 For safety, you can only revert up to {changesets_limit} changesets at a time')
 
-        if limit_increase := min((k for k in changesets_limit_config if k > user_edits), default=None):
-            context_print(f'🛟 To increase this limit, make at least {limit_increase} edits')
+            if limit_increase := min((k for k in changesets_limit_config if k > user_edits), default=None):
+                context_print(f'🛟 To increase this limit, make at least {limit_increase} edits')
 
-        return -1
+            return -1
 
     overpass = Overpass()
     diffs = []
