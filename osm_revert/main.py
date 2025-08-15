@@ -9,7 +9,14 @@ import xmltodict
 from pydantic import SecretStr
 from sentry_sdk import capture_exception, trace
 
-from osm_revert.config import CHANGESETS_LIMIT_CONFIG, CHANGESETS_LIMIT_MODERATOR_REVERT, CREATED_BY, OSM_URL, WEBSITE
+from osm_revert.config import (
+    CHANGESETS_LIMIT_CONFIG,
+    CHANGESETS_LIMIT_MODERATOR_REVERT,
+    CREATED_BY,
+    OSM_URL,
+    OVERPASS_URL,
+    WEBSITE,
+)
 from osm_revert.context_logger import context_print
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.invert import Inverter
@@ -92,6 +99,7 @@ async def main(
     discussion_target: str = 'all',
     osc_file: str | None = None,
     print_osc: bool | None = None,
+    overpass_url: str = OVERPASS_URL,
     query_filter: str = '',
     only_tags: Sequence[str] = (),
     fix_parents: bool = True,
@@ -128,7 +136,7 @@ async def main(
 
             return -1
 
-    overpass = Overpass()
+    overpass = Overpass(overpass_url)
     diffs = []
 
     for changeset_id in changeset_ids:

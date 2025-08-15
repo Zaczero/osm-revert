@@ -21,4 +21,4 @@ def context_print(msg: str) -> None:
     if queue is not None:
         queue.put_nowait(msg)
     else:
-        print(msg)  # noqa: T201
+        print(msg)

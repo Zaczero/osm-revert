@@ -21,6 +21,8 @@ if (!localStorage.getItem('first-time-modal-acknowledged')) {
 
 const form = document.getElementById('form')
 const changesets = document.getElementById('changesets')
+const overpass_url = document.getElementById('overpass-url')
+const overpass_url_reset = document.getElementById('overpass-url-reset')
 const query_filter = document.getElementById('query-filter')
 const comment = document.getElementById('comment')
 const discussion = document.getElementById('discussion')
@@ -28,6 +30,21 @@ const submit = document.getElementById('submit')
 const submit_osc = document.getElementById('submit-osc')
 const log = document.getElementById('log')
 const ws = new WebSocket(`${document.location.protocol === 'https:' ? 'wss' : 'ws'}://${document.location.host}/ws`)
+
+// Load saved Overpass URL from localStorage or use default
+const savedOverpassUrl = localStorage.getItem('overpass-url')
+if (savedOverpassUrl) overpass_url.value = savedOverpassUrl
+
+// Save Overpass URL to localStorage when it changes
+overpass_url.addEventListener('change', () => {
+    localStorage.setItem('overpass-url', overpass_url.value)
+})
+
+// Reset Overpass URL to default
+overpass_url_reset.addEventListener('click', () => {
+    overpass_url.value = overpass_url.placeholder
+    localStorage.removeItem('overpass-url')
+})
 
 let isAutoScrolling = true
 let isReverting = true
@@ -107,6 +124,7 @@ const beginRevert = upload => {
 
     ws.send(JSON.stringify({
         changesets: changesets.value,
+        overpass_url: overpass_url.value || overpass_url.placeholder,
         query_filter: query_filter.value,
         comment: comment.value,
         upload: upload,

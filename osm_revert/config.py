@@ -13,7 +13,7 @@ USER_AGENT = f'osm-revert/{VERSION} (+https://github.com/Zaczero/osm-revert)'
 
 TEST_ENV = os.getenv('TEST_ENV', '0').strip().lower() in ('1', 'true', 'yes')
 if TEST_ENV:
-    print('[CONF] Running in test environment')  # noqa: T201
+    print('[CONF] Running in test environment')
 
 CHANGESETS_LIMIT_CONFIG = {
     '': {
@@ -35,7 +35,7 @@ CHANGESETS_LIMIT_MODERATOR_REVERT = int(os.getenv('CHANGESETS_LIMIT_MODERATOR_RE
 
 OSM_URL = os.getenv('OSM_URL', 'https://www.openstreetmap.org')
 OSM_API_URL = os.getenv('OSM_API_URL', 'https://api.openstreetmap.org')
-OVERPASS_URLS = os.getenv('OVERPASS_URLS', 'https://overpass-api.de/api').split()
+OVERPASS_URL = os.getenv('OVERPASS_URL') or os.getenv('OVERPASS_URLS', 'https://overpass-api.de/api').split()[0]
 
 OSM_CLIENT = os.environ['OSM_CLIENT']
 OSM_SECRET = SecretStr(os.environ['OSM_SECRET'])

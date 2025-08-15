@@ -4,6 +4,7 @@ dependencies = [
   "fastapi",
   "githead",
   "gunicorn",
+  "httpx-secure",
   "httpx[brotli,zstd]",
   "jinja2",
   "sentry-sdk[fastapi,httpx,pure_eval]",
@@ -65,7 +66,6 @@ select = [
   "SLF", # flake8-self
   "SLOT", # flake8-slots
   "T10", # flake8-debugger
-  "T20", # flake8-print
   "TID", # flake8-tidy-imports
   "UP", # pyupgrade
   "W6",

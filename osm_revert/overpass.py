@@ -10,7 +10,7 @@ import xmltodict
 from httpx import AsyncClient
 from sentry_sdk import trace
 
-from osm_revert.config import OVERPASS_URLS, REVERT_TO_DATE
+from osm_revert.config import REVERT_TO_DATE
 from osm_revert.context_logger import context_print
 from osm_revert.diff_entry import DiffEntry
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
@@ -206,8 +206,8 @@ def ensure_visible_tag(element: dict | None) -> None:
 
 
 class Overpass:
-    def __init__(self):
-        self._https = tuple(get_http_client(url) for url in OVERPASS_URLS)
+    def __init__(self, overpass_url: str):
+        self._http = get_http_client(overpass_url)
 
     async def get_changeset_elements_history(
         self,
@@ -215,27 +215,12 @@ class Overpass:
         steps: int,
         query_filter: str,
     ) -> dict[str, list[DiffEntry]] | None:
-        errors = []
+        result = await self._get_changeset_elements_history(self._http, changeset, steps, query_filter)
 
-        for http in self._https:
-            if errors:
-                context_print(f'[2/{steps}] Retrying …')
+        if isinstance(result, dict):  # everything ok
+            return result
 
-            result = await self._get_changeset_elements_history(http, changeset, steps, query_filter)
-
-            if isinstance(result, dict):  # everything ok
-                return result
-
-            errors.append(result)
-
-        # all errors are the same
-        if all(errors[0] == e for e in errors[1:]):
-            context_print(f'{errors[0]} (x{len(errors)})')
-        else:
-            context_print('❗️ Multiple errors occurred:')
-            for i, error in enumerate(errors):
-                context_print(f'[{i + 1}/{len(errors)}]: {error}')
-
+        context_print(result)
         return None
 
     @trace
@@ -385,7 +370,7 @@ class Overpass:
             query_by_ids = build_query_parents_by_ids(deleting_ids)
 
             parents_query = f'[timeout:180];{query_by_ids}'
-            data = await fetch_overpass(self._https[0], parents_query)
+            data = await fetch_overpass(self._http, parents_query)
 
             if isinstance(data, str):
                 return data

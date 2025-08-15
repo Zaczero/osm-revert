@@ -14,7 +14,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from httpx import AsyncClient
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, HttpUrl, SecretStr
 from sentry_sdk import capture_exception, start_transaction, trace
 from starlette.websockets import WebSocket
 
@@ -25,6 +25,7 @@ from osm_revert.config import (
     OSM_SCOPES,
     OSM_SECRET,
     OSM_URL,
+    OVERPASS_URL,
     TEST_ENV,
     USER_AGENT,
 )
@@ -55,7 +56,14 @@ app.mount('/static', StaticFiles(directory='web/static', html=True), name='stati
 @app.post('/')
 async def index(request: Request):
     if user := await _fetch_user_details(request):
-        return _TEMPLATES.TemplateResponse(request, 'authorized.jinja2', {'user': user})
+        return _TEMPLATES.TemplateResponse(
+            request,
+            'authorized.jinja2',
+            {
+                'user': user,
+                'overpass_url': OVERPASS_URL,
+            },
+        )
     else:
         return _TEMPLATES.TemplateResponse(request, 'index.jinja2')
 
@@ -63,15 +71,13 @@ async def index(request: Request):
 @app.post('/login')
 async def login(request: Request):
     state = os.urandom(32).hex()
-    authorization_url = f'{OSM_URL}/oauth2/authorize?' + urlencode(
-        {
-            'client_id': OSM_CLIENT,
-            'redirect_uri': str(request.url_for('callback')),
-            'response_type': 'code',
-            'scope': OSM_SCOPES,
-            'state': state,
-        }
-    )
+    authorization_url = f'{OSM_URL}/oauth2/authorize?' + urlencode({
+        'client_id': OSM_CLIENT,
+        'redirect_uri': str(request.url_for('callback')),
+        'response_type': 'code',
+        'scope': OSM_SCOPES,
+        'state': state,
+    })
     response = RedirectResponse(authorization_url, status.HTTP_303_SEE_OTHER)
     response.set_cookie('oauth_state', state, secure=not TEST_ENV, httponly=True)
     return response
@@ -139,6 +145,7 @@ async def websocket(ws: WebSocket):
 
 class MainArgs(BaseModel):
     changesets: str
+    overpass_url: HttpUrl
     query_filter: str
     comment: str
     upload: bool
@@ -151,6 +158,7 @@ class MainArgs(BaseModel):
 async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
     changesets = _RE_CHANGESET_SEPARATOR.split(args.changesets)
     changesets = tuple(c.strip() for c in changesets if c.strip())
+    overpass_url = str(args.overpass_url)
     query_filter = args.query_filter.strip()
     comment = _RE_REPEATED_WHITESPACE.sub(' ', args.comment).strip()
     upload = args.upload
@@ -186,6 +194,7 @@ async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
                     discussion=discussion,
                     discussion_target=discussion_target,
                     print_osc=print_osc,
+                    overpass_url=overpass_url,
                     query_filter=query_filter,
                     fix_parents=fix_parents,
                 )
