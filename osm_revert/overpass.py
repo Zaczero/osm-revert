@@ -7,12 +7,13 @@ from functools import lru_cache
 from itertools import chain, pairwise
 
 import xmltodict
-from httpx import AsyncClient
 from sentry_sdk import trace
+from starlette.websockets import WebSocket
 
 from osm_revert.config import REVERT_TO_DATE
 from osm_revert.context_logger import context_print
 from osm_revert.diff_entry import DiffEntry
+from osm_revert.proxy_state import ClientError, proxy_request
 from osm_revert.utils import ensure_iterable, get_http_client, retry_exponential
 
 _RE_REL_ALIAS = re.compile(r'\brel\b')
@@ -150,29 +151,6 @@ def build_query_parents_by_ids(element_ids: dict) -> str:
     )
 
 
-@retry_exponential
-@trace
-async def fetch_overpass(http: AsyncClient, data: str, *, check_bad_request: bool = False) -> dict | str:
-    r = await http.post('.', data={'data': data}, timeout=300)
-
-    if check_bad_request and r.status_code == 400:
-        s = r.text.find('<body>')
-        e = r.text.find('</body>')
-        if e > s > -1:
-            body = r.text[s + 6 : e].strip()
-            body = _RE_XML_TAG.sub('', body)
-            lines = tuple(
-                html.unescape(line.strip()[7:])  #
-                for line in body.split('\n')
-                if line.strip().startswith('Error: ')
-            )
-            if lines:
-                return '🛑 Overpass - Bad Request:\n' + '\n'.join(f'🛑 {line}' for line in lines)
-
-    r.raise_for_status()  # TODO: return error message instead raise
-    return xmltodict.parse(r.text)
-
-
 @trace
 def get_current_map(actions: Iterable[dict]) -> dict[str, dict[str, dict]]:
     result = {'node': {}, 'way': {}, 'relation': {}}
@@ -206,8 +184,60 @@ def ensure_visible_tag(element: dict | None) -> None:
 
 
 class Overpass:
-    def __init__(self, overpass_url: str):
-        self._http = get_http_client(overpass_url)
+    __slots__ = ('_http', '_overpass_url', '_ws')
+
+    def __init__(self, overpass_url: str, *, ws: WebSocket | None = None):
+        self._http = get_http_client(overpass_url) if ws is None else None
+        self._overpass_url = overpass_url
+        self._ws = ws
+
+    @retry_exponential
+    @trace
+    async def fetch_overpass(self, data: str, *, check_bad_request: bool = False) -> dict | str:
+        if self._ws is not None:
+            # Proxy mode
+            async with proxy_request(self._ws, self._overpass_url, data) as (request_id, future):
+                await self._ws.send_json({
+                    'type': 'overpass_request',
+                    'id': request_id,
+                    'url': self._overpass_url,
+                    'query': data,
+                })
+
+                try:
+                    status, response = await future
+                except TimeoutError:
+                    return '🕒 Client Request Timeout'
+                except ClientError as e:
+                    return f'🛑 Client Error: {e}'
+                except Exception as e:
+                    return f'🛑 Error: {e}'
+                if not (200 <= status < 300) and status != 400:
+                    return f'🛑 Overpass Error: {response}'
+
+        else:
+            # Direct mode
+            assert self._http is not None
+            r = await self._http.post('.', data={'data': data}, timeout=300)
+            status, response = r.status_code, r.text
+            if status != 400:
+                r.raise_for_status()  # TODO: return error message instead raise
+
+        if check_bad_request and status == 400:
+            s = response.find('<body>')
+            e = response.find('</body>')
+            if e > s > -1:
+                body = response[s + 6 : e].strip()
+                body = _RE_XML_TAG.sub('', body)
+                lines = tuple(
+                    html.unescape(line.strip()[7:])  #
+                    for line in body.split('\n')
+                    if line.strip().startswith('Error: ')
+                )
+                if lines:
+                    return '🛑 Overpass Bad Request:\n' + '\n'.join(f'🛑 {line}' for line in lines)
+
+        return xmltodict.parse(response)
 
     async def get_changeset_elements_history(
         self,
@@ -215,7 +245,7 @@ class Overpass:
         steps: int,
         query_filter: str,
     ) -> dict[str, list[DiffEntry]] | None:
-        result = await self._get_changeset_elements_history(self._http, changeset, steps, query_filter)
+        result = await self._get_changeset_elements_history(changeset, steps, query_filter)
 
         if isinstance(result, dict):  # everything ok
             return result
@@ -226,7 +256,6 @@ class Overpass:
     @trace
     async def _get_changeset_elements_history(
         self,
-        http: AsyncClient,
         changeset: dict,
         steps: int,
         query_filter: str,
@@ -242,7 +271,7 @@ class Overpass:
             query_unfiltered = build_query_filtered(element_ids, '')
 
             partition_query = f'[timeout:180]{bbox}{partition_adiff};{query_unfiltered}'
-            partition_diff = await fetch_overpass(http, partition_query)
+            partition_diff = await self.fetch_overpass(partition_query)
 
             if isinstance(partition_diff, str):
                 return partition_diff
@@ -262,7 +291,7 @@ class Overpass:
                 query_filtered = build_query_filtered(element_ids, query_filter)
 
                 filtered_query = f'[timeout:180]{bbox}{partition_adiff};{query_filtered}'
-                filtered_diff = await fetch_overpass(http, filtered_query, check_bad_request=True)
+                filtered_diff = await self.fetch_overpass(filtered_query, check_bad_request=True)
 
                 if isinstance(filtered_diff, str):
                     return filtered_diff
@@ -306,7 +335,7 @@ class Overpass:
                 changeset_edits.extend(parse_action(a) for a in partition_action)
 
             current_query = f'[timeout:180]{bbox}{current_adiff};{query_unfiltered}'
-            current_diff = await fetch_overpass(http, current_query)
+            current_diff = await self.fetch_overpass(current_query)
 
             if isinstance(current_diff, str):
                 return current_diff
@@ -370,7 +399,7 @@ class Overpass:
             query_by_ids = build_query_parents_by_ids(deleting_ids)
 
             parents_query = f'[timeout:180];{query_by_ids}'
-            data = await fetch_overpass(self._http, parents_query)
+            data = await self.fetch_overpass(parents_query)
 
             if isinstance(data, str):
                 return data

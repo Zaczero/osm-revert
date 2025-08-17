@@ -1,26 +1,33 @@
-{}:
+{ }:
 
 let
   # Update packages with `nixpkgs-update` command
-  pkgs = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/a595dde4d0d31606e19dcec73db02279db59d201.tar.gz") { };
+  pkgs =
+    import
+      (fetchTarball "https://github.com/NixOS/nixpkgs/archive/a595dde4d0d31606e19dcec73db02279db59d201.tar.gz")
+      { };
 
   pythonLibs = with pkgs; [
     stdenv.cc.cc.lib
   ];
-  python' = with pkgs; (symlinkJoin {
-    name = "python";
-    paths = [ python313 ];
-    buildInputs = [ makeWrapper ];
-    postBuild = ''
-      wrapProgram "$out/bin/python3.13" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath pythonLibs}"
-    '';
-  });
+  python' =
+    with pkgs;
+    (symlinkJoin {
+      name = "python";
+      paths = [ python313 ];
+      buildInputs = [ makeWrapper ];
+      postBuild = ''
+        wrapProgram "$out/bin/python3.13" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath pythonLibs}"
+      '';
+    });
 
   packages' = with pkgs; [
     python'
     esbuild
     uv
     ruff
+    curl
+    jq
 
     (writeShellScriptBin "run" ''
       python -m gunicorn web.main:app \
@@ -43,11 +50,11 @@ let
     (writeShellScriptBin "nixpkgs-update" ''
       set -e
       hash=$(
-        curl --silent --location \
-        https://prometheus.nixos.org/api/v1/query \
-        -d "query=channel_revision{channel=\"nixpkgs-unstable\"}" | \
-        grep --only-matching --extended-regexp "[0-9a-f]{40}")
-      sed -i -E "s|/nixpkgs/archive/[0-9a-f]{40}\.tar\.gz|/nixpkgs/archive/$hash.tar.gz|" shell.nix
+        curl -sSL \
+          https://prometheus.nixos.org/api/v1/query \
+          -d 'query=channel_revision{channel="nixpkgs-unstable"}' \
+        | jq -r ".data.result[0].metric.revision")
+      sed -i "s|nixpkgs/archive/[0-9a-f]\\{40\\}|nixpkgs/archive/$hash|" shell.nix
       echo "Nixpkgs updated to $hash"
     '')
   ];

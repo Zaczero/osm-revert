@@ -1,0 +1,76 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.js",
+      "**/*.json"
+    ]
+  },
+  "formatter": {
+    "formatWithErrors": true,
+    "lineWidth": 88,
+    "useEditorconfig": true
+  },
+  "javascript": {
+    "formatter": {
+      "semicolons": "asNeeded",
+      "quoteStyle": "single"
+    }
+  },
+  "linter": {
+    "rules": {
+      "complexity": {
+        "noForEach": "on",
+        "noUselessStringConcat": "on",
+        "noVoid": "on",
+        "useWhile": "on"
+      },
+      "nursery": {
+        "noAwaitInLoop": "on",
+        "noConstantBinaryExpression": "on",
+        "noUselessBackrefInRegex": "on",
+        "noUselessEscapeInString": "on",
+        "noUselessUndefined": "on",
+        "useObjectSpread": "on",
+        "useParseIntRadix": "on"
+      },
+      "performance": {
+        "noDelete": "on",
+        "useTopLevelRegex": "on"
+      },
+      "recommended": true,
+      "style": {
+        "noCommonJs": "on",
+        "noInferrableTypes": "on",
+        "noNamespace": "on",
+        "noSubstr": "on",
+        "noUnusedTemplateLiteral": "on",
+        "useCollapsedElseIf": "on",
+        "useConsistentArrayType": "on",
+        "useConsistentBuiltinInstantiation": "on",
+        "useConst": {
+          "fix": "unsafe",
+          "level": "on"
+        },
+        "useForOf": "on",
+        "useNumberNamespace": "on",
+        "useShorthandAssign": "on",
+        "useThrowNewError": "on",
+        "useThrowOnlyError": "on"
+      },
+      "suspicious": {
+        "noConfusingVoidType": "off",
+        "noEvolvingTypes": "on",
+        "noExplicitAny": "off",
+        "useAwait": "on"
+      }
+    }
+  },
+  "vcs": {
+    "clientKind": "git",
+    "defaultBranch": "main",
+    "enabled": true,
+    "useIgnoreFile": true
+  }
+}

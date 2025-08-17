@@ -1,6 +1,6 @@
 import os
 import re
-from asyncio import Queue, QueueShutDown, Semaphore, TaskGroup, timeout
+from asyncio import FIRST_COMPLETED, Queue, QueueShutDown, Semaphore, TaskGroup, create_task, timeout, wait
 from collections import defaultdict
 from contextlib import suppress
 from functools import lru_cache
@@ -31,6 +31,7 @@ from osm_revert.config import (
 )
 from osm_revert.context_logger import context_logger
 from osm_revert.main import main as revert_main
+from osm_revert.proxy_state import cleanup_websocket, handle_proxy_response
 
 HashedAccessToken = NewType('HashedAccessToken', bytes)
 
@@ -126,21 +127,57 @@ async def websocket(ws: WebSocket):
 
     semaphore = _ACTIVE_WS[_hash_access_token(access_token)]
     if semaphore.locked():
-        await ws.close(1008, 'Too many simultaneous connections for this user')
+        await ws.close(1008, 'Too many simultaneous connections')
         return
 
     async with semaphore:
+        receive_task = None
+        revert_task = None
+
+        async def run_revert_task(args: MainArgs):
+            with start_transaction(op='websocket.server', name='revert'):
+                last_message = await main(ws, access_token, args)
+                await ws.send_json({'message': last_message, 'last': True})
+
         try:
             while True:
-                args = MainArgs(**(await ws.receive_json()))
-                with start_transaction(op='websocket.server', name='revert'):
-                    last_message = await main(ws, access_token, args)
-                    await ws.send_json({'message': last_message, 'last': True})
+                receive_task = receive_task or create_task(ws.receive_json())
+                tasks = (receive_task,) if revert_task is None else (receive_task, revert_task)
+                done, _ = await wait(tasks, return_when=FIRST_COMPLETED)
+
+                for task in done:
+                    if task is receive_task:
+                        message: dict = await task  # type: ignore
+                        receive_task = None
+
+                        # Handle overpass responses
+                        if message.get('type') == 'overpass_response':
+                            handle_proxy_response(
+                                message['id'],
+                                message['status'],
+                                message.get('data'),
+                                message.get('error'),
+                            )
+                            continue
+
+                        # Start new revert if none running
+                        revert_task = revert_task or create_task(run_revert_task(MainArgs(**message)))
+
+                    elif task is revert_task:
+                        await task
+                        revert_task = None
+
         except* WebSocketDisconnect:
             pass
         except* Exception as e:
             capture_exception(e)
             await ws.close(1011, str(e))
+        finally:
+            if receive_task is not None:
+                receive_task.cancel()
+            if revert_task is not None:
+                revert_task.cancel()
+            cleanup_websocket(ws)
 
 
 class MainArgs(BaseModel):
@@ -197,6 +234,7 @@ async def main(ws: WebSocket, access_token: SecretStr, args: MainArgs) -> str:
                     overpass_url=overpass_url,
                     query_filter=query_filter,
                     fix_parents=fix_parents,
+                    proxy_ws=ws,
                 )
     return f'Exit code: {exit_code}'
 

@@ -12,7 +12,7 @@ dependencies = [
   "xmltodict",
 ]
 name = "osm-revert"
-requires-python = "~=3.13"
+requires-python = "~=3.13.0"
 version = "0.0.0"
 
 [tool.uv]
@@ -30,7 +30,7 @@ line-length = 120
 target-version = "py313"
 
 [tool.ruff.lint]
-ignore = []
+ignore = ["ASYNC109", "S101"]
 # see https://docs.astral.sh/ruff/rules/ for rules documentation
 select = [
   "A", # flake8-builtins
@@ -54,7 +54,6 @@ select = [
   "N", # pep8-naming
   "NPY", # numpy
   "PERF", # perflint
-  "PGH", # pygrep-hooks
   "PIE", # flake8-pie
   "PT", # flake8-pytest-style
   "PYI", # flake8-pyi
@@ -79,6 +78,7 @@ indent-style = "space"
 line-ending = "lf"
 quote-style = "single"
 skip-magic-trailing-comma = false
+preview = true
 
 [tool.ruff.lint.flake8-builtins]
 builtins-ignorelist = ["id", "open", "type"]

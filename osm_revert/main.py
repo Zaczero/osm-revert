@@ -8,6 +8,7 @@ import uvloop
 import xmltodict
 from pydantic import SecretStr
 from sentry_sdk import capture_exception, trace
+from starlette.websockets import WebSocket
 
 from osm_revert.config import (
     CHANGESETS_LIMIT_CONFIG,
@@ -103,6 +104,7 @@ async def main(
     query_filter: str = '',
     only_tags: Sequence[str] = (),
     fix_parents: bool = True,
+    proxy_ws: WebSocket | None = None,
 ) -> int:
     if not changeset_ids:
         raise ValueError('Missing changeset ids')
@@ -136,7 +138,7 @@ async def main(
 
             return -1
 
-    overpass = Overpass(overpass_url)
+    overpass = Overpass(overpass_url, ws=proxy_ws)
     diffs = []
 
     for changeset_id in changeset_ids:
