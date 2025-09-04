@@ -376,7 +376,7 @@ class Overpass:
         return result
 
     @trace
-    async def update_parents(self, invert: dict[str, list], fix_parents: bool) -> int:
+    async def update_parents(self, invert: dict[str, list], fix_parents: bool) -> str | int:
         internal_ids = {
             'node': {e['@id'] for e in invert['node']},
             'way': {e['@id'] for e in invert['way']},

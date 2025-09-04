@@ -191,7 +191,9 @@ async def main(
     invert = inverter.invert_diff(merged_diffs)
 
     parents_counter = await overpass.update_parents(invert, fix_parents=fix_parents)
-    if parents_counter:
+    if isinstance(parents_counter, str):
+        context_print(parents_counter)
+    elif parents_counter:
         if fix_parents:
             context_print(f'🛠️ Fixing {parents_counter} parent{"s" if parents_counter > 1 else ""}')
         else:
