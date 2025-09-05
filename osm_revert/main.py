@@ -193,7 +193,9 @@ async def main(
     parents_counter = await overpass.update_parents(invert, fix_parents=fix_parents)
     if isinstance(parents_counter, str):
         context_print(parents_counter)
-    elif parents_counter:
+        return -1
+
+    if parents_counter:
         if fix_parents:
             context_print(f'🛠️ Fixing {parents_counter} parent{"s" if parents_counter > 1 else ""}')
         else:
