@@ -9,7 +9,7 @@ dependencies = [
   "jinja2",
   "sentry-sdk[fastapi,httpx,pure_eval]",
   "uvicorn[standard]",
-  "xmltodict",
+  "xmltodict==0.14.2",
 ]
 name = "osm-revert"
 requires-python = "~=3.13.0"
