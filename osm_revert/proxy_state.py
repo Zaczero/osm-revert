@@ -40,7 +40,7 @@ def cleanup_request(request: str | _ActiveRequest | None) -> None:
     if not request['timeout_task'].done():
         request['timeout_task'].cancel()
 
-    _ACTIVE_REQUESTS.pop(request['id'])
+    _ACTIVE_REQUESTS.pop(request['id'], None)
     _WS_REQUESTS[request['ws']].discard(request['id'])
 
 
