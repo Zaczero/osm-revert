@@ -190,9 +190,7 @@ class OsmApi:
 
             # trim value if too long
             if len(value) > TAG_MAX_LENGTH:
-                context_print(
-                    f'✂️ Trimming value of {key} changeset tag because it exceeds {TAG_MAX_LENGTH} characters: {value}'
-                )
+                context_print(f'✂️ Trimmed {key} changeset tag: exceeds {TAG_MAX_LENGTH} chars')
                 extra_tags[key] = value[:252] + '…'
 
         changeset = {'osm': {'changeset': {'tag': [{'@k': k, '@v': v} for k, v in extra_tags.items()]}}}
