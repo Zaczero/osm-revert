@@ -4,7 +4,7 @@ let
   # Update packages with `nixpkgs-update` command
   pkgs =
     import
-      (fetchTarball "https://github.com/NixOS/nixpkgs/archive/ad4e6dd68c30bc8bd1860a27bc6f0c485bd7f3b6.tar.gz")
+      (fetchTarball "https://github.com/NixOS/nixpkgs/archive/16c7794d0a28b5a37904d55bcca36003b9109aaa.tar.gz")
       { };
 
   pythonLibs = with pkgs; [
@@ -60,10 +60,11 @@ let
   ];
 
   shell' = with pkgs; ''
-    export TZ=UTC
-    export NIX_ENFORCE_NO_NATIVE=0
     export NIX_SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
     export SSL_CERT_FILE=$NIX_SSL_CERT_FILE
+
+    export TZ=UTC
+    export NIX_ENFORCE_NO_NATIVE=0
     export PYTHONNOUSERSITE=1
     export PYTHONPATH=""
 
@@ -74,15 +75,12 @@ let
     echo "Installing Python dependencies"
     export UV_PYTHON="${python'}/bin/python"
     uv sync --frozen
-
-    echo "Activating Python virtual environment"
     source .venv/bin/activate
+    export UV_PYTHON="$VIRTUAL_ENV/bin/python"
 
     if [ -f .env ]; then
       echo "Loading .env file"
-      set -o allexport
-      source .env set
-      set +o allexport
+      set -a; . .env; set +a
     else
       echo "Skipped loading .env file (not found)"
     fi
