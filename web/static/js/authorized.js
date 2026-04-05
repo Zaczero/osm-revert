@@ -35,6 +35,13 @@ const log = document.getElementById('log')
 const ws = new WebSocket(
 	`${document.location.protocol === 'https:' ? 'wss' : 'ws'}://${document.location.host}/ws`,
 )
+let isAutoScrolling = true
+
+const appendLogMessage = (message) => {
+	log.value += message + '\n'
+	if (isAutoScrolling && log.scrollHeight > log.clientHeight)
+		log.scrollTop = log.scrollHeight
+}
 
 const compressData = async (text) => {
 	const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('deflate'))
@@ -43,20 +50,59 @@ const compressData = async (text) => {
 }
 
 const activeRequests = new Map()
-const processOverpassRequest = async (id, url, query) => {
-	console.info(`[${id}] Processing overpass request`)
-	const controller = new AbortController()
-	activeRequests.set(id, controller)
+const OVERPASS_MAX_RETRIES = 6
+const OVERPASS_RETRY_INTERVAL_MS = 10000
 
-	try {
+const waitWithAbort = (ms, signal) =>
+	new Promise((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			signal.removeEventListener('abort', onAbort)
+			resolve()
+		}, ms)
+
+		const onAbort = () => {
+			clearTimeout(timeout)
+			reject(new DOMException('Aborted', 'AbortError'))
+		}
+
+		if (signal.aborted) {
+			onAbort()
+			return
+		}
+
+		signal.addEventListener('abort', onAbort, { once: true })
+	})
+
+const fetchOverpassWithRetries = async (id, url, query, signal) => {
+	for (let attempt = 0; attempt <= OVERPASS_MAX_RETRIES; attempt++) {
 		const response = await fetch(url, {
 			method: 'POST',
 			body: new URLSearchParams({ data: query }),
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			credentials: 'omit',
 			priority: 'high',
-			signal: controller.signal,
+			signal: signal,
 		})
+
+		if (response.status !== 429 && response.status !== 504 || attempt === OVERPASS_MAX_RETRIES) {
+			return response
+		}
+
+		appendLogMessage(
+			`⚠️ Overpass returned ${response.status} status code, retrying in ${OVERPASS_RETRY_INTERVAL_MS / 1000}s (${attempt + 1}/${OVERPASS_MAX_RETRIES})`,
+		)
+		await waitWithAbort(OVERPASS_RETRY_INTERVAL_MS, signal)
+	}
+}
+
+const processOverpassRequest = async (id, url, query) => {
+	console.info(`[${id}] Processing overpass request`)
+	const controller = new AbortController()
+	activeRequests.set(id, controller)
+
+	try {
+		const response = await fetchOverpassWithRetries(id, url, query, controller.signal)
+
 		const data = await response.text()
 		const compressed = await compressData(data)
 		console.info(`[${id}] Uploading overpass response:`, response.status)
@@ -98,7 +144,6 @@ overpass_url_reset.addEventListener('click', () => {
 	localStorage.removeItem('overpass-url')
 })
 
-let isAutoScrolling = true
 let isReverting = true
 let clearFields = false
 
@@ -149,10 +194,7 @@ ws.onmessage = (e) => {
 	} else if (wsDownloadingOsc) {
 		wsOsc.push(obj.message)
 	} else {
-		log.value += obj.message + '\n'
-
-		if (isAutoScrolling && log.scrollHeight > log.clientHeight)
-			log.scrollTop = log.scrollHeight
+		appendLogMessage(obj.message)
 	}
 
 	if (obj.last === true) {
